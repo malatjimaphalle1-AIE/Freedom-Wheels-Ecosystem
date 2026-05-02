@@ -1,0 +1,264 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Public and private user information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "level": { "type": "integer", "description": "User clearance level (e.g., 4)" },
+        "balance": { "type": "number", "description": "Current fiat balance" },
+        "btcBalance": { "type": "number" },
+        "usdtBalance": { "type": "number" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "referralCount": { "type": "integer" },
+        "referralEarnings": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "level", "referralCode"]
+    },
+    "Withdrawal": {
+      "title": "Withdrawal Record",
+      "description": "Extraction of sovereign assets",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "method": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "COMPLETED", "FAILED"] },
+        "destination": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "currency", "method", "status", "timestamp"]
+    },
+    "Referral": {
+      "title": "Referral Record",
+      "description": "Tracking of a neural node expansion",
+      "type": "object",
+      "properties": {
+        "referrerId": { "type": "string" },
+        "refereeId": { "type": "string" },
+        "refereeEmail": { "type": "string" },
+        "rewardAmount": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["referrerId", "refereeId", "timestamp"]
+    },
+    "Engine": {
+      "title": "Income Engine",
+      "description": "Configuration of an autonomous revenue system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["ACTIVE", "PAUSED", "DRAFT"] },
+        "revenue": { "type": "string" },
+        "performance": { "type": "string" },
+        "currentVersionId": { "type": "string", "description": "Reference to the active version" },
+        "nodes": {
+          "type": "array",
+          "items": { 
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "type": { "type": "string", "enum": ["input", "process", "output"] },
+              "status": { "type": "string", "enum": ["active", "inactive", "error"] },
+              "content": { "type": "string", "description": "Configuration or code snippets" }
+            },
+            "required": ["id", "label", "type", "status"]
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "status"]
+    },
+    "EngineVersion": {
+      "title": "Engine Version",
+      "description": "A snapshot of an engine configuration",
+      "type": "object",
+      "properties": {
+        "engineId": { "type": "string" },
+        "userId": { "type": "string" },
+        "versionName": { "type": "string" },
+        "changelog": { "type": "string" },
+        "nodes": { "type": "array" },
+        "edges": { "type": "array" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["engineId", "userId", "versionName", "nodes", "edges", "timestamp"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Information about a potential customer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "campaignId": { "type": "string", "description": "ID of the assigned campaign" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "score": { "type": "integer" },
+        "status": { "type": "string" },
+        "source": { "type": "string" },
+        "lastActivity": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "email"]
+    },
+    "Outreach": {
+      "title": "AI Outreach",
+      "description": "Record of an AI-generated message sent to a lead",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "leadId": { "type": "string" },
+        "campaignId": { "type": "string" },
+        "strategy": { "type": "string", "enum": ["Empathetic", "Direct", "Curiosity", "Value-First"] },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "SENT", "FAILED"] },
+        "engagement": { "type": "string", "enum": ["NONE", "OPENED", "CLICKED", "RESPONDED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "leadId", "strategy", "subject", "body", "status"]
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "description": "Marketing campaign for lead tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["ACTIVE", "PAUSED", "COMPLETED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "status"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial movement record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["DEPOSIT", "WITHDRAWAL", "REVENUE"] },
+        "asset": { "type": "string", "enum": ["USD", "BTC", "USDT"] },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["COMPLETED", "PENDING", "FAILED"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "asset", "amount", "status", "timestamp"]
+    },
+    "Log": {
+      "title": "Activity Log",
+      "description": "System and user activity log entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "desc": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "desc", "type"]
+    },
+    "Terminal": {
+      "title": "Payout Terminal",
+      "description": "Linked financial destination",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "label": { "type": "string" },
+        "identifier": { "type": "string" },
+        "type": { "type": "string", "enum": ["bank", "crypto", "electronic"] },
+        "active": { "type": "boolean" }
+      },
+      "required": ["userId", "label", "identifier", "type"]
+    },
+    "ScoringRule": {
+      "title": "Lead Scoring Rule",
+      "description": "Logic for assigning value to leads based on activity",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "label": { "type": "string" },
+        "type": { "type": "string", "enum": ["ACTIVITY", "MATCH", "FACTOR"] },
+        "score": { "type": "integer" },
+        "deleted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "label", "type", "score"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/users/{userId}/private/info": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string" },
+          "payoutDetails": { "type": "object" }
+        }
+      },
+      "description": "Private PII data"
+    },
+    "/engines/{engineId}": {
+      "schema": "Engine",
+      "description": "Global list of engines (filtered by userId)"
+    },
+    "/engines/{engineId}/versions/{versionId}": {
+      "schema": "EngineVersion",
+      "description": "Historical snapshots of engine configurations"
+    },
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Global list of leads (filtered by userId)"
+    },
+    "/transactions/{txId}": {
+      "schema": "Transaction",
+      "description": "Global list of transactions (filtered by userId)"
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "System activity logs"
+    },
+    "/terminals/{terminalId}": {
+      "schema": "Terminal",
+      "description": "User payout terminals"
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": "Withdrawal",
+      "description": "User funds extraction records"
+    },
+    "/referrals/{referralId}": {
+      "schema": "Referral",
+      "description": "Neural expansion records"
+    },
+    "/campaigns/{campaignId}": {
+      "schema": "Campaign",
+      "description": "Marketing campaigns"
+    },
+    "/outreach/{outreachId}": {
+      "schema": "Outreach",
+      "description": "AI-generated outreach records"
+    },
+    "/scoringRules/{ruleId}": {
+      "schema": "ScoringRule",
+      "description": "Lead scoring definitions"
+    }
+  }
+}

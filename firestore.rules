@@ -1,0 +1,241 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    function isDocOwner() {
+      return isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    function isAdmin() {
+      // Use get() to check user's role in the 'users' collection
+      // Safe check: Only run if the document exists to avoid runtime errors
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Entity Validations ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 200 &&
+             data.role in ['ADMIN', 'USER', 'VIEWER'] &&
+             // Prevent unauthorized admin assignment (bootstrap check)
+             (data.role != 'ADMIN' || request.auth.token.email == 'malatjimaphalle1@gmail.com') &&
+             (data.get('level', 0) is int) &&
+             (data.get('balance', 0) is number) &&
+             (data.get('btcBalance', 0) is number) &&
+             (data.get('usdtBalance', 0) is number) &&
+             (data.get('referralCode', '') is string);
+    }
+
+    function isValidWithdrawal(data) {
+       return data.keys().hasAll(['userId', 'amount', 'currency', 'method', 'status', 'timestamp', 'destination']) &&
+              data.userId == request.auth.uid &&
+              data.amount is number && data.amount > 0 &&
+              data.status in ['PENDING', 'SUCCESS', 'FAILED'] &&
+              data.timestamp == request.time;
+    }
+
+    function isValidReferral(data) {
+       return data.keys().hasAll(['referrerId', 'refereeId', 'refereeEmail', 'rewardAmount', 'timestamp']) &&
+              data.refereeId == request.auth.uid &&
+              data.rewardAmount is number &&
+              data.timestamp == request.time;
+    }
+
+    function isValidEngine(data) {
+      return data.keys().hasAll(['userId', 'name', 'status']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.status in ['ACTIVE', 'PAUSED', 'DRAFT'] &&
+             (data.get('revenue', '') is string) &&
+             (data.get('performance', '') is string);
+    }
+
+    function isValidLead(data) {
+      return data.keys().hasAll(['userId', 'name', 'email']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 200 &&
+             (data.get('campaignId', '') is string);
+    }
+
+    function isValidCampaign(data) {
+      return data.keys().hasAll(['userId', 'name', 'status']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.status in ['ACTIVE', 'PAUSED', 'COMPLETED'];
+    }
+
+    function isValidOutreach(data) {
+       return data.keys().hasAll(['userId', 'leadId', 'strategy', 'subject', 'body', 'status', 'engagement', 'createdAt']) &&
+              data.userId == request.auth.uid &&
+              data.strategy in ['Empathetic', 'Direct', 'Curiosity', 'Value-First'] &&
+              data.status in ['DRAFT', 'SENT', 'FAILED'] &&
+              data.engagement in ['NONE', 'OPENED', 'CLICKED', 'RESPONDED', 'CONSUMED', 'SYNCED', 'INTERACTED'] &&
+              (data.get('campaignId', '') is string);
+    }
+    
+    function isValidScoringRule(data) {
+      return data.keys().hasAll(['userId', 'label', 'type', 'score']) &&
+             data.userId == request.auth.uid &&
+             data.type in ['ACTIVITY', 'MATCH', 'FACTOR'] &&
+             data.score is int;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['userId', 'type', 'asset', 'amount', 'status', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.type in ['DEPOSIT', 'WITHDRAWAL', 'REVENUE'] &&
+             data.asset in ['USD', 'BTC', 'USDT'] &&
+             data.amount is number &&
+             data.status in ['COMPLETED', 'PENDING', 'FAILED'] &&
+             data.timestamp == request.time;
+    }
+
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // --- Match Groups ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      // Allow searching for referrers by code
+      allow list: if isSignedIn();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    (incoming().role == existing().role || (request.auth.token.email == 'malatjimaphalle1@gmail.com' && incoming().role == 'ADMIN')) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'level', 'role', 'balance', 'btcBalance', 'usdtBalance', 'updatedAt', 'referralCode', 'referredBy', 'referralCount', 'referralEarnings']);
+      
+      // SPECIAL: Allow referee to increment referrer's count (for demo purposes)
+      allow update: if isSignedIn() && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['referralCount', 'referralEarnings', 'balance', 'updatedAt']) &&
+                    incoming().referralCount == existing().referralCount + 1;
+
+      match /private/info {
+        allow get, write: if isOwner(userId);
+      }
+    }
+
+    match /referrals/{referralId} {
+      allow list: if isSignedIn() && resource.data.referrerId == request.auth.uid;
+      allow get: if isSignedIn() && (resource.data.referrerId == request.auth.uid || resource.data.refereeId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().refereeId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /withdrawals/{withdrawalId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidWithdrawal(incoming());
+      allow update, delete: if false;
+    }
+
+    match /engines/{engineId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidEngine(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidEngine(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'name', 'status', 'revenue', 'performance', 'nodes', 'edges', 'updatedAt']);
+      allow delete: if isDocOwner();
+    }
+
+    match /leads/{leadId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidLead(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidLead(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'score', 'status', 'source', 'lastActivity', 'campaignId', 'history', 'enrichedData', 'factors']);
+      allow delete: if isDocOwner();
+    }
+
+    match /campaigns/{campaignId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidCampaign(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidCampaign(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'status', 'updatedAt']);
+      allow delete: if isDocOwner();
+    }
+
+    match /transactions/{txId} {
+      allow get: if isDocOwner();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidTransaction(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if false; 
+      allow delete: if false;
+    }
+
+    // --- Logs Rules ---
+    match /logs/{logId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isDocOwner();
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && incoming().timestamp == request.time;
+      allow update, delete: if false; 
+    }
+
+    // --- Terminals Rules ---
+    match /terminals/{terminalId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isDocOwner();
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isDocOwner() && incoming().userId == existing().userId;
+      allow delete: if isDocOwner();
+    }
+
+    match /outreach/{outreachId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isDocOwner();
+      allow create: if isSignedIn() && isValidOutreach(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidOutreach(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['status', 'engagement', 'updatedAt']);
+      allow delete: if isDocOwner();
+    }
+
+    match /scoringRules/{ruleId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isDocOwner();
+      allow create: if isSignedIn() && isValidScoringRule(incoming());
+      allow update: if isDocOwner() && isValidScoringRule(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['label', 'type', 'score', 'deleted', 'updatedAt']);
+      allow delete: if isDocOwner();
+    }
+  }
+}
