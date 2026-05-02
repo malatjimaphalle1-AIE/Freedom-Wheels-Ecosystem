@@ -1,7 +1,7 @@
 # 🚀 Freedom Wheels™ Ecosystem
 
 <div align="center">
-  <img src="https://grok.com/c/5515ea99-5677-49bc-b92e-9554ec728913?rid=c80b0db4-f545-4f9a-bafc-abd1be3a2965/1200x400.png?text=Freedom+Wheels+Banner" alt="Freedom Wheels Banner" />
+  <img src="https://https://via.placeholder.com/1200x400.png?text=Freedom+Wheels+Banner" alt="Freedom Wheels Banner" />
 </div>
 
 ---
