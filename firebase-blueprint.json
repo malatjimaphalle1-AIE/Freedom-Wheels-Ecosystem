@@ -70,7 +70,14 @@
               "label": { "type": "string" },
               "type": { "type": "string", "enum": ["input", "process", "output"] },
               "status": { "type": "string", "enum": ["active", "inactive", "error"] },
-              "content": { "type": "string", "description": "Configuration or code snippets" }
+              "content": { "type": "string", "description": "Configuration or code snippets" },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" }
+                }
+              }
             },
             "required": ["id", "label", "type", "status"]
           }
@@ -140,6 +147,9 @@
         "userId": { "type": "string" },
         "name": { "type": "string" },
         "description": { "type": "string" },
+        "audience": { "type": "string" },
+        "goal": { "type": "string" },
+        "budget": { "type": "string" },
         "status": { "type": "string", "enum": ["ACTIVE", "PAUSED", "COMPLETED"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
@@ -194,14 +204,34 @@
         "userId": { "type": "string" },
         "label": { "type": "string" },
         "type": { "type": "string", "enum": ["ACTIVITY", "MATCH", "FACTOR"] },
-        "score": { "type": "integer" },
+        "weight": { "type": "integer" },
         "deleted": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "label", "type", "score"]
+    },
+    "Webhook": {
+      "title": "Inbound Webhook",
+      "description": "External trigger protocol for autonomous workflows",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "engineId": { "type": "string", "description": "Engine to trigger upon receipt" },
+        "secret": { "type": "string", "description": "Security token for validation" },
+        "active": { "type": "boolean" },
+        "lastTriggered": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "secret", "active"]
     }
   },
   "firestore": {
+    "/webhooks/{webhookId}": {
+      "schema": "Webhook",
+      "description": "User inbound trigger protocols"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profiles"

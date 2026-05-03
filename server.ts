@@ -24,40 +24,41 @@ app.get("/api/health", (req, res) => {
 });
 
 // Wise API Integration
-let cachedProfileId: string | null = null;
+let cachedProfileId: Record<string, string> = {};
 
 const getProfileId = async (req?: express.Request) => {
-  if (cachedProfileId && !req?.headers["x-wise-profile-id"]) return cachedProfileId;
-
-  let profileId = (req?.headers["x-wise-profile-id"] as string) || process.env.WISE_PROFILE_ID;
   const apiKey = (req?.headers["x-wise-api-key"] as string) || process.env.WISE_API_KEY;
-  
-  if (!apiKey) return null; 
+  if (!apiKey) return null;
 
+  const headerProfileId = req?.headers["x-wise-profile-id"] as string;
+  if (headerProfileId) return headerProfileId;
+
+  // Use API key as cache key to avoid collisions if multiple users use different keys
+  const cacheKey = apiKey.substring(0, 10);
+  if (cachedProfileId[cacheKey]) return cachedProfileId[cacheKey];
+
+  let profileId = process.env.WISE_PROFILE_ID;
+  
   if (!profileId || profileId === "" || profileId.startsWith('P')) {
     try {
       const profiles = await getWiseData("/v1/profiles", req);
       if (profiles && Array.isArray(profiles) && profiles.length > 0) {
-        const profile = profiles.find((p: any) => p.type === 'personal') || profiles[0];
+        // Prefer business if available, then personal
+        const profile = profiles.find((p: any) => p.type === 'business') || profiles.find((p: any) => p.type === 'personal') || profiles[0];
         profileId = profile.id.toString();
-        if (!req?.headers["x-wise-profile-id"]) cachedProfileId = profileId;
+        cachedProfileId[cacheKey] = profileId;
         return profileId;
       }
     } catch (err) {
       console.warn("Failed to reach Wise profile resolution:", err instanceof Error ? err.message : String(err));
-      if (profileId && profileId.startsWith('P')) {
-        const fallback = profileId.substring(1);
-        if (!req?.headers["x-wise-profile-id"]) cachedProfileId = fallback;
-        return fallback;
-      }
+      // fallback logic if needed
     }
   }
   
-  if (!req?.headers["x-wise-profile-id"]) cachedProfileId = profileId || null;
   return profileId;
 };
 
-const getWiseData = async (endpoint: string, req?: express.Request) => {
+const getWiseData = async (endpoint: string, req?: express.Request, silent = false) => {
   const apiKey = (req?.headers["x-wise-api-key"] as string) || process.env.WISE_API_KEY;
   if (!apiKey) {
     throw new Error("WISE_API_KEY is not configured.");
@@ -86,23 +87,36 @@ const getWiseData = async (endpoint: string, req?: express.Request) => {
       } catch (e) {
         errorDetail = "Could not read error body";
       }
-      console.error(`Wise API Error [${response.status}] for ${endpoint}:`, errorDetail);
-      throw new Error(`Wise API returned ${response.status}`);
+      
+      if (!silent || response.status !== 404) {
+        console.error(`Wise API Error [${response.status}] for ${endpoint}:`, errorDetail);
+      }
+      
+      let clientMessage = `Wise API Error: ${response.status}`;
+      if (response.status === 401) clientMessage = "Wise Authentication Failed: Please check your API Key in Settings.";
+      if (response.status === 403) clientMessage = "Wise Access Denied: Ensure your API Key has correct permissions and IP whitelising is disabled (or includes this server).";
+      if (response.status === 404) clientMessage = "Wise Profile/Resource Not Found: Please verify your Profile ID.";
+      
+      const err = new Error(clientMessage);
+      (err as any).status = response.status;
+      throw err;
     }
     
     const text = await response.text();
     try {
       return JSON.parse(text);
     } catch (e) {
-      console.error(`Failed to parse Wise JSON response from ${endpoint}:`, text.substring(0, 100));
+      if (!silent) console.error(`Failed to parse Wise JSON response from ${endpoint}:`, text.substring(0, 100));
       throw new Error("Invalid JSON response from Wise");
     }
   } catch (err: any) {
     clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      console.error(`Wise fetch timed out for ${endpoint}`);
-    } else {
-      console.error(`Wise fetch failed for ${endpoint}:`, err.message);
+    if (!silent) {
+      if (err.name === 'AbortError') {
+        console.error(`Wise fetch timed out for ${endpoint}`);
+      } else {
+        console.error(`Wise fetch failed for ${endpoint}:`, err.message);
+      }
     }
     throw err;
   }
@@ -110,8 +124,10 @@ const getWiseData = async (endpoint: string, req?: express.Request) => {
 
 app.get("/api/wise/balance", async (req, res) => {
   const mockBalances = [
-    { amount: { value: 8500.00, currency: "USD" }, type: "STANDARD" },
-    { amount: { value: 1200.50, currency: "EUR" }, type: "STANDARD" }
+    { amount: { value: 8500.00, currency: "USD" }, type: "STANDARD", name: "Main_Vault" },
+    { amount: { value: 1200.50, currency: "EUR" }, type: "STANDARD", name: "Sovereign_Euro" },
+    { amount: { value: 0.00, currency: "GBP" }, type: "STANDARD", name: "London_Node" },
+    { amount: { value: 0.00, currency: "ZAR" }, type: "STANDARD", name: "Cape_Town_Terminal" }
   ];
 
   try {
@@ -120,15 +136,48 @@ app.get("/api/wise/balance", async (req, res) => {
       return res.json(mockBalances);
     }
 
-    let balances;
-    try {
-      balances = await getWiseData(`/v4/profiles/${profileId}/balances?types=STANDARD`, req);
-    } catch (e) {
-      balances = await getWiseData(`/v4/balances?profileId=${profileId}`, req);
+    // Try multiple endpoints to find where the balances are
+    const endpoints = [
+      `/v4/profiles/${profileId}/balances?types=STANDARD`,
+      `/v4/profiles/${profileId}/balances?types=SAVINGS`,
+      `/v4/balances?profileId=${profileId}`
+    ];
+
+    const results = await Promise.allSettled(endpoints.map(e => getWiseData(e, req, true)));
+    
+    let combinedBalances: any[] = [];
+    let lastError: any = null;
+
+    results.forEach((r, idx) => {
+      if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+        combinedBalances = [...combinedBalances, ...r.value];
+      } else if (r.status === 'rejected') {
+        lastError = r.reason;
+      }
+    });
+
+    if (combinedBalances.length === 0) {
+      // One last try for multi-currency accounts
+      try {
+        const borderless = await getWiseData(`/v1/borderless-accounts?profileId=${profileId}`, req, true);
+        if (borderless && borderless.length > 0 && borderless[0].balances) {
+          combinedBalances = borderless[0].balances;
+        }
+      } catch (e) {
+        if (!lastError) lastError = e;
+      }
     }
-    res.json(balances);
+
+    if (combinedBalances.length === 0 && lastError && (req?.headers["x-wise-api-key"] || process.env.WISE_API_KEY)) {
+      return res.status(lastError.status || 500).json({ error: lastError.message });
+    }
+
+    res.json(combinedBalances.length > 0 ? combinedBalances : mockBalances);
   } catch (err: any) {
-    console.warn("Wise Balance API failed, using mock data", err.message);
+    console.warn("Wise Balance API protocol failure:", err.message);
+    if (req?.headers["x-wise-api-key"] || process.env.WISE_API_KEY) {
+      return res.status(err.status || 500).json({ error: err.message });
+    }
     res.json(mockBalances);
   }
 });
@@ -147,16 +196,19 @@ app.get("/api/wise/transactions", async (req, res) => {
 
     let activities;
     try {
-      activities = await getWiseData(`/v1/profiles/${profileId}/activities`, req);
+      activities = await getWiseData(`/v1/profiles/${profileId}/activities`, req, true);
     } catch (e) {
-      activities = await getWiseData(`/v1/activities?profileId=${profileId}`, req);
+      activities = await getWiseData(`/v1/activities?profileId=${profileId}`, req, true);
     }
     
     // Normalize response if it's wrapped in 'activities' field
     const results = activities?.activities || activities;
     res.json(Array.isArray(results) ? results : mockTransactions);
   } catch (err: any) {
-    console.warn("Wise Transactions API failed, using mock data", err.message);
+    console.warn("Wise Transactions API failure:", err.message);
+    if (req?.headers["x-wise-api-key"] || process.env.WISE_API_KEY) {
+      return res.status(err.status || 500).json({ error: err.message });
+    }
     res.json(mockTransactions);
   }
 });
@@ -176,6 +228,31 @@ app.post("/api/leads/enrich", async (req, res) => {
       technologies: ["Neural Bridge", "Quantum Ledger", "Stealth VPN"],
       verified: true,
       bio: `Static enrichment record for ${name}. Establish neural bridge for live intelligence.`
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/webhooks/:webhookId", async (req, res) => {
+  try {
+    const { webhookId } = req.params;
+    const { secret, payload } = req.body;
+
+    if (!secret) {
+      return res.status(401).json({ error: "Unauthorized: Missing Sovereign Secret" });
+    }
+
+    // In a real production scenario, we would verify the secret against Firestore here
+    // For this build, we accept the payload and log the protocol execution
+    console.log(`[SOVEREIGN_CORE] Webhook Protocol ${webhookId} executed at ${new Date().toISOString()}`);
+    console.log(`[PAYLOAD]:`, JSON.stringify(payload));
+
+    res.json({
+      status: "Trigger_Accepted",
+      id: webhookId,
+      timestamp: new Date().toISOString(),
+      system: "Sovereign_Core_v4.2"
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
