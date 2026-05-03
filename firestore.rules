@@ -110,7 +110,7 @@ service cloud.firestore {
     function isValidScoringRule(data) {
       return data.keys().hasAll(['userId', 'label', 'type', 'score']) &&
              data.userId == request.auth.uid &&
-             data.type in ['ACTIVITY', 'MATCH', 'FACTOR'] &&
+             data.type in ['ACTIVITY', 'MATCH', 'FACTOR', 'EMAIL_OPEN', 'CLICK', 'AUTH', 'SYNC', 'SEARCH', 'READ', 'OPTIN'] &&
              data.score is int;
     }
 
