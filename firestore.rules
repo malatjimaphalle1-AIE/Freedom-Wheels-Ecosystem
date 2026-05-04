@@ -127,6 +127,13 @@ service cloud.firestore {
              data.timestamp == request.time;
     }
 
+    function isValidKeyVault(data) {
+       return (data.get('geminiKey', '') is string && data.get('geminiKey', '').size() <= 200) &&
+              (data.get('wiseKey', '') is string && data.get('wiseKey', '').size() <= 200) &&
+              (data.get('wiseProfileId', '') is string && data.get('wiseProfileId', '').size() <= 64) &&
+              (data.get('updatedAt', request.time) == request.time);
+    }
+
     match /test/connection {
       allow get: if true;
     }
@@ -147,8 +154,9 @@ service cloud.firestore {
                     incoming().diff(existing()).affectedKeys().hasOnly(['referralCount', 'referralEarnings', 'balance', 'updatedAt']) &&
                     incoming().referralCount == existing().referralCount + 1;
 
-      match /private/info {
-        allow get, write: if isOwner(userId);
+      match /private/{docId} {
+        allow get: if isOwner(userId);
+        allow write: if isOwner(userId) && (docId != 'keys' || isValidKeyVault(incoming()));
       }
     }
 

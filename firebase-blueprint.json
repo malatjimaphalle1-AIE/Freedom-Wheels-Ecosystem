@@ -250,6 +250,17 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "title", "status", "priority"]
+    },
+    "KeyVault": {
+      "title": "Protocol Keyring",
+      "description": "Secure storage for external API credentials",
+      "type": "object",
+      "properties": {
+        "geminiKey": { "type": "string" },
+        "wiseKey": { "type": "string" },
+        "wiseProfileId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
@@ -265,15 +276,9 @@
       "schema": "User",
       "description": "User profiles"
     },
-    "/users/{userId}/private/info": {
-      "schema": {
-        "type": "object",
-        "properties": {
-          "email": { "type": "string" },
-          "payoutDetails": { "type": "object" }
-        }
-      },
-      "description": "Private PII data"
+    "/users/{userId}/private/{docId}": {
+      "schema": "KeyVault",
+      "description": "Private encrypted vault for keys and sensitive info"
     },
     "/engines/{engineId}": {
       "schema": "Engine",
