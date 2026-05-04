@@ -1,6 +1,9 @@
 {
-  "name": "Freedom Wheels™ Ecosystem",
-  "description": "An all-in-one digital marketing and automation platform powered by AutoIncome Engines™ – Sovereign Core.",
-  "requestFramePermissions": [],
+  "name": "AutoIncome Engine™ – Sovereign Core",
+  "description": "An autonomous income infrastructure that allows users to build, deploy, and manage automated revenue systems operating 24/7. Powered by Sovereign Core neural technology.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
   "majorCapabilities": []
 }

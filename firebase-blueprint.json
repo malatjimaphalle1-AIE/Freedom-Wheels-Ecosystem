@@ -151,6 +151,9 @@
         "goal": { "type": "string" },
         "budget": { "type": "string" },
         "status": { "type": "string", "enum": ["ACTIVE", "PAUSED", "COMPLETED"] },
+        "industries": { "type": "array", "items": { "type": "string" } },
+        "locations": { "type": "array", "items": { "type": "string" } },
+        "behaviors": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "name", "status"]
@@ -225,12 +228,35 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "name", "secret", "active"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Marketing tasks, content publications, and system optimizations.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed", "warning"] },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "category": { "type": "string" },
+        "type": { "type": "string" },
+        "contentRef": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "status", "priority"]
     }
   },
   "firestore": {
     "/webhooks/{webhookId}": {
       "schema": "Webhook",
       "description": "User inbound trigger protocols"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "User marketing and system tasks"
     },
     "/users/{userId}": {
       "schema": "User",

@@ -24,11 +24,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Use get() to check user's role in the 'users' collection
-      // Safe check: Only run if the document exists to avoid runtime errors
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
+      // Hardcoded bootstrap admin check to avoid recursive profile lookups
+      return isSignedIn() && (request.auth.token.email == 'malatjimaphalle1@gmail.com');
     }
 
     function incoming() {
@@ -95,7 +92,13 @@ service cloud.firestore {
       return data.keys().hasAll(['userId', 'name', 'status']) &&
              data.userId == request.auth.uid &&
              data.name is string && data.name.size() <= 100 &&
-             data.status in ['ACTIVE', 'PAUSED', 'COMPLETED'];
+             data.status in ['ACTIVE', 'PAUSED', 'COMPLETED'] &&
+             (data.get('audience', '') is string) &&
+             (data.get('goal', '') is string) &&
+             (data.get('budget', '') is string) &&
+             (data.get('industries', []) is list) &&
+             (data.get('locations', []) is list) &&
+             (data.get('behaviors', []) is list);
     }
 
     function isValidOutreach(data) {
@@ -183,13 +186,31 @@ service cloud.firestore {
       allow delete: if isDocOwner();
     }
 
+    function isValidTask(data) {
+      return data.keys().hasAll(['userId', 'title', 'status', 'priority']) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             data.status in ['pending', 'in-progress', 'completed', 'warning'] &&
+             data.priority in ['Low', 'Medium', 'High', 'Critical'];
+    }
+
+    match /tasks/{taskId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isDocOwner();
+      allow create: if isSignedIn() && isValidTask(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidTask(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'status', 'priority', 'dueDate', 'category', 'type', 'contentRef', 'updatedAt']);
+      allow delete: if isDocOwner();
+    }
+
     match /campaigns/{campaignId} {
       allow get: if isDocOwner();
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidCampaign(incoming()) && incoming().userId == request.auth.uid;
       allow update: if isDocOwner() && isValidCampaign(incoming()) &&
                     incoming().userId == existing().userId &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'status', 'updatedAt']);
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'audience', 'goal', 'budget', 'industries', 'locations', 'behaviors', 'status', 'updatedAt']);
       allow delete: if isDocOwner();
     }
 
