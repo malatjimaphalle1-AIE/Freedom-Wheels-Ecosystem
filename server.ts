@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -163,8 +162,10 @@ app.get("/api/wise/balance", async (req, res) => {
   const mockBalances = [
     { amount: { value: 8500.00, currency: "USD" }, type: "STANDARD", name: "Main_Vault", id: "m1" },
     { amount: { value: 1200.50, currency: "EUR" }, type: "STANDARD", name: "Sovereign_Euro", id: "m2" },
-    { amount: { value: 0.00, currency: "GBP" }, type: "STANDARD", name: "London_Node", id: "m3" },
-    { amount: { value: 0.00, currency: "ZAR" }, type: "STANDARD", name: "Cape_Town_Terminal", id: "m4" }
+    { amount: { value: 450.75, currency: "GBP" }, type: "STANDARD", name: "London_Node", id: "m3" },
+    { amount: { value: 15400.00, currency: "ZAR" }, type: "STANDARD", name: "Cape_Town_Terminal", id: "m4" },
+    { amount: { value: 0.245, currency: "BTC" }, type: "STOCKS", name: "Neural_BTC_Index", id: "m5" },
+    { amount: { value: 4.82, currency: "ETH" }, type: "INTEREST", name: "Sovereign_ETH_Yield", id: "m6" }
   ];
 
   try {
@@ -179,6 +180,8 @@ app.get("/api/wise/balance", async (req, res) => {
     const endpoints = [
       `/v4/profiles/${profileId}/balances?types=STANDARD`,
       `/v4/profiles/${profileId}/balances?types=SAVINGS`,
+      `/v4/profiles/${profileId}/balances?types=INTEREST`,
+      `/v4/profiles/${profileId}/balances?types=STOCKS`,
       `/v1/borderless-accounts?profileId=${profileId}`
     ];
 
@@ -385,6 +388,7 @@ app.post("/api/webhooks/:webhookId", async (req, res) => {
 // Vite middleware for development
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
