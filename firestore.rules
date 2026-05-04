@@ -174,15 +174,24 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    match /engines/{engineId} {
-      allow get: if isDocOwner();
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidEngine(incoming()) && incoming().userId == request.auth.uid;
-      allow update: if isDocOwner() && isValidEngine(incoming()) &&
-                    incoming().userId == existing().userId &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'name', 'status', 'revenue', 'performance', 'nodes', 'edges', 'updatedAt']);
-      allow delete: if isDocOwner();
-    }
+      match /engines/{engineId} {
+        allow get: if isDocOwner();
+        allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+        allow create: if isSignedIn() && isValidEngine(incoming()) && incoming().userId == request.auth.uid;
+        allow update: if isDocOwner() && isValidEngine(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'name', 'status', 'revenue', 'performance', 'nodes', 'edges', 'updatedAt']);
+        allow delete: if isDocOwner();
+
+        match /versions/{versionId} {
+          allow list: if isSignedIn() && (get(/databases/$(database)/documents/engines/$(engineId)).data.userId == request.auth.uid || isAdmin());
+          allow get: if isSignedIn() && (get(/databases/$(database)/documents/engines/$(engineId)).data.userId == request.auth.uid || isAdmin());
+          allow create: if isSignedIn() && isValidEngineVersion(incoming()) && 
+                        incoming().engineId == engineId &&
+                        get(/databases/$(database)/documents/engines/$(engineId)).data.userId == request.auth.uid;
+          allow update, delete: if false;
+        }
+      }
 
     match /leads/{leadId} {
       allow get: if isDocOwner();
@@ -257,6 +266,22 @@ service cloud.firestore {
       allow delete: if isDocOwner();
     }
 
+    function isValidWebhook(data) {
+      return data.keys().hasAll(['userId', 'name', 'secret', 'active']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.secret is string && data.secret.size() <= 100 &&
+             data.active is bool;
+    }
+
+    function isValidEngineVersion(data) {
+      return data.keys().hasAll(['engineId', 'userId', 'versionName', 'nodes', 'edges', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.engineId is string &&
+             data.versionName is string && data.versionName.size() <= 100 &&
+             data.timestamp == request.time;
+    }
+
     match /scoringRules/{ruleId} {
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow get: if isDocOwner();
@@ -264,6 +289,16 @@ service cloud.firestore {
       allow update: if isDocOwner() && isValidScoringRule(incoming()) &&
                     incoming().userId == existing().userId &&
                     incoming().diff(existing()).affectedKeys().hasOnly(['label', 'type', 'score', 'deleted', 'updatedAt']);
+      allow delete: if isDocOwner();
+    }
+
+    match /webhooks/{webhookId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isDocOwner();
+      allow create: if isSignedIn() && isValidWebhook(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidWebhook(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'secret', 'active', 'lastTriggered', 'updatedAt']);
       allow delete: if isDocOwner();
     }
   }
