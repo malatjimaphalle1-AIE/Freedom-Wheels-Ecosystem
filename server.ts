@@ -27,21 +27,28 @@ app.get("/api/health", (req, res) => {
 let cachedProfileId: Record<string, string> = {};
 
 const getProfileId = async (req?: express.Request) => {
-  const apiKey = (req?.headers["x-wise-api-key"] as string) || process.env.WISE_API_KEY;
-  if (!apiKey) return null;
+  const rawKey = (req?.headers["x-wise-api-key"] as string) || process.env.WISE_API_KEY;
+  if (!rawKey) return null;
+  const apiKey = rawKey.trim();
+
+  let profileId: string | undefined;
 
   // Layer 1: Client Header Override
   const headerProfileId = req?.headers["x-wise-profile-id"] as string;
   if (headerProfileId && headerProfileId !== 'undefined' && headerProfileId !== 'null') {
-    return headerProfileId;
+    profileId = headerProfileId;
   }
 
   // Layer 2: Secure Memory Cache (Keyed by truncated hash for privacy)
-  const cacheKey = apiKey.substring(apiKey.length - 12);
-  if (cachedProfileId[cacheKey]) return cachedProfileId[cacheKey];
+  if (!profileId) {
+    const cacheKey = apiKey.substring(apiKey.length - 12);
+    if (cachedProfileId[cacheKey]) profileId = cachedProfileId[cacheKey];
+  }
 
   // Layer 3: Environment Configuration
-  let profileId = process.env.WISE_PROFILE_ID;
+  if (!profileId) {
+    profileId = process.env.WISE_PROFILE_ID;
+  }
   
   // Layer 4: Autonomous Discovery
   if (!profileId || profileId === "" || profileId === "undefined") {
@@ -56,9 +63,9 @@ const getProfileId = async (req?: express.Request) => {
         });
 
         profileId = sortedProfiles[0].id.toString();
+        const cacheKey = apiKey.substring(apiKey.length - 12);
         cachedProfileId[cacheKey] = profileId;
         console.log(`[SOVEREIGN_WISE] Auto-dispatched Profile_ID: ${profileId} (${sortedProfiles[0].type})`);
-        return profileId;
       }
     } catch (err) {
       console.warn("[SOVEREIGN_WISE] Profile discovery handshake failed:", err instanceof Error ? err.message : String(err));
@@ -74,12 +81,14 @@ const getProfileId = async (req?: express.Request) => {
 };
 
 const getWiseData = async (endpoint: string, req?: express.Request, silent = false) => {
-  const apiKey = (req?.headers["x-wise-api-key"] as string) || process.env.WISE_API_KEY;
-  if (!apiKey) {
+  const rawKey = (req?.headers["x-wise-api-key"] as string) || process.env.WISE_API_KEY;
+  if (!rawKey) {
     throw new Error("Wise Protocol Error: Missing API Key in sovereign environment.");
   }
   
-  const baseUrl = "https://api.transferwise.com";
+  const apiKey = rawKey.trim();
+  const env = req?.headers["x-wise-env"] as string;
+  const baseUrl = env === 'sandbox' ? "https://api.sandbox.transferwise.tech" : "https://api.transferwise.com";
   
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s for global latency
@@ -114,7 +123,11 @@ const getWiseData = async (endpoint: string, req?: express.Request, silent = fal
       }
       
       let message = `Wise_Interface_Error: Status_${status}`;
-      if (status === 401) message = "Wise_Auth_Failed: Key credentials rejected by Master Protocol.";
+      if (status === 401) {
+        // Intelligence: Suggest checking sandbox vs production if unauthorized
+        const isSandbox = baseUrl.includes('sandbox');
+        message = `Wise_Auth_Failed: Key credentials rejected by ${isSandbox ? 'Sandbox' : 'Production'} Protocol. Verify API Token and Scopes.`;
+      }
       if (status === 403) message = "Wise_Access_Forbidden: Permission scope insufficient. Check Sovereign Permissions.";
       if (status === 404) message = "Wise_Resource_Missing: The requested node does not exist in this sector.";
       if (status === 429) message = "Wise_Rate_Limit: High-frequency traffic detected. Throttling active.";
