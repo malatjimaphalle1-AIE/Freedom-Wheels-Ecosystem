@@ -35,7 +35,7 @@ import NotificationCenter from "../components/NotificationCenter";
 import { useAuth } from "../contexts/AuthContext";
 import { useEngineStore } from "../store/useEngineStore";
 import { useNotificationStore } from "../store/useNotificationStore";
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, runTransaction } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { fetchWithRetry } from "../lib/fetchUtils";
 
@@ -286,41 +286,60 @@ export default function WalletPage() {
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !withdrawAmount || !withdrawDestination) return;
-
     setWithdrawStatus('processing');
     setWithdrawErrorMessage("");
-    
+
     try {
       const amount = parseFloat(withdrawAmount);
-      
-      // Basic balance validation (standardized to USD for simplicity in this demo)
-      // In a real app, you'd check the specific currency balance
-      if (amount > totalBalance) {
-        throw new Error("Insufficient sovereign assets for this extraction.");
-      }
 
-      const terminal = terminals.find(t => t.id === selectedTerminal);
-      
-      const withdrawalData = {
-        userId: user.uid,
-        amount: amount,
-        currency: withdrawCurrency,
-        method: terminal?.label || "Direct Transfer",
-        destination: withdrawDestination,
-        status: "PENDING", // Rules typically only allow PENDING on create
-        express: isExpress,
-        fastTrack: isExpress,
-        timestamp: serverTimestamp()
-      };
+      // Minimum and currency specific validation
+      const minByCurrency: Record<string, number> = { USD: 1, EUR: 1, GBP: 1, ZAR: 10, USDT: 1, BTC: 0.0001, ETH: 0.001 };
+      const minAllowed = minByCurrency[withdrawCurrency] ?? 1;
+      if (amount < minAllowed) throw new Error(`Minimum withdrawal for ${withdrawCurrency} is ${minAllowed}`);
 
-      await addDoc(collection(db, "withdrawals"), withdrawalData);
-      
-      await addDoc(collection(db, "logs"), {
-        userId: user.uid,
-        title: isExpress ? "FAST_TRACK Extraction" : "Asset Extraction Initiated",
-        desc: `${isExpress ? "Priority" : "Standard"} withdrawal of ${amount.toLocaleString()} ${withdrawCurrency} to ${withdrawDestination} is being processed.`,
-        type: "withdrawal",
-        timestamp: serverTimestamp()
+      // Fee calculation
+      const fee = isExpress ? amount * 0.03 : amount * 0.01;
+
+      // Transactional update: reserve funds and create withdrawal atomically
+      await runTransaction(db, async (tx) => {
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await tx.get(userRef);
+        if (!userSnap.exists()) throw new Error("User record not found.");
+        const currentBal = (userSnap.data() as any).balance || 0;
+
+        if (amount + fee > currentBal) {
+          throw new Error("Insufficient sovereign assets for this extraction (including fees).");
+        }
+
+        // deduct immediately (reserve)
+        tx.update(userRef, { balance: currentBal - amount - fee });
+
+        const terminal = terminals.find(t => t.id === selectedTerminal);
+
+        const withdrawalRef = doc(collection(db, "withdrawals"));
+        const withdrawalData = {
+          userId: user.uid,
+          amount: amount,
+          currency: withdrawCurrency,
+          method: terminal?.label || "Direct Transfer",
+          destination: withdrawDestination,
+          status: "PENDING",
+          express: isExpress,
+          fastTrack: isExpress,
+          fee: fee,
+          timestamp: serverTimestamp()
+        } as any;
+
+        tx.set(withdrawalRef, withdrawalData);
+
+        const logRef = doc(collection(db, "logs"));
+        tx.set(logRef, {
+          userId: user.uid,
+          title: isExpress ? "FAST_TRACK Extraction" : "Asset Extraction Initiated",
+          desc: `${isExpress ? "Priority" : "Standard"} withdrawal of ${amount.toLocaleString()} ${withdrawCurrency} to ${withdrawDestination} is being processed. Fee: ${fee.toFixed(2)} ${withdrawCurrency}`,
+          type: "withdrawal",
+          timestamp: serverTimestamp()
+        });
       });
 
       setWithdrawStatus('success');
@@ -330,12 +349,53 @@ export default function WalletPage() {
         setWithdrawAmount("");
         setWithdrawDestination("");
         setIsExpress(false);
-      }, 2000);
+      }, 1500);
     } catch (err: any) {
       console.error(err);
       setWithdrawStatus('error');
       setWithdrawErrorMessage(err.message || "Extraction protocol failure.");
       setTimeout(() => setWithdrawStatus('idle'), 5000);
+    }
+  };
+
+  const handleCancelWithdrawal = async (withdrawalId: string) => {
+    if (!user) return;
+    try {
+      const confirmCancel = window.confirm('Cancel this pending withdrawal and refund assets to your vault?');
+      if (!confirmCancel) return;
+
+      await runTransaction(db, async (tx) => {
+        const wRef = doc(db, 'withdrawals', withdrawalId);
+        const wSnap = await tx.get(wRef);
+        if (!wSnap.exists()) throw new Error('Withdrawal not found');
+        const wData = wSnap.data() as any;
+        if (wData.status !== 'PENDING') throw new Error('Only pending withdrawals can be cancelled');
+
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await tx.get(userRef);
+        if (!userSnap.exists()) throw new Error('User not found');
+        const currentBal = (userSnap.data() as any).balance || 0;
+
+        // refund amount + fee
+        const refund = (wData.amount || 0) + (wData.fee || 0);
+        tx.update(userRef, { balance: currentBal + refund });
+
+        tx.update(wRef, { status: 'CANCELLED', cancelledAt: serverTimestamp() });
+
+        const logRef = doc(collection(db, 'logs'));
+        tx.set(logRef, {
+          userId: user.uid,
+          title: 'Withdrawal Cancelled',
+          desc: `Cancelled withdrawal ${withdrawalId}. Refunded ${refund}.`,
+          type: 'withdrawal',
+          timestamp: serverTimestamp()
+        });
+      });
+
+      addNotification({ type: 'INFO', title: 'Withdrawal Cancelled', message: 'The withdrawal was cancelled and funds were refunded to your vault.' });
+    } catch (err) {
+      console.error('Cancel failed:', err);
+      addNotification({ type: 'SECURITY', title: 'Cancel Failed', message: String(err) });
     }
   };
 
@@ -726,6 +786,7 @@ export default function WalletPage() {
                       type={tx.type} 
                       destination={tx.destination}
                       fee={tx.fee}
+                      onCancel={() => handleCancelWithdrawal(tx.id)}
                     />
                   ))}
                 </div>
@@ -1095,7 +1156,7 @@ const AssetSmall: React.FC<AssetSmallProps> = ({ label, value, currency, icon })
   );
 };
 
-function TxRow({ id, title, desc, date, amount, secondaryAmount, status, type, destination, fee }: any) {
+function TxRow({ id, title, desc, date, amount, secondaryAmount, status, type, destination, fee, onCancel }: any) {
   const [showInfo, setShowInfo] = React.useState(false);
   const isPending = status === "PENDING" || status === "FAST_TRACK" || status === "PROCESSING";
   const hasExtraInfo = isPending || desc || (type === 'withdrawal' && (destination || fee));
@@ -1206,6 +1267,11 @@ function TxRow({ id, title, desc, date, amount, secondaryAmount, status, type, d
                         {status || "PROCESSING"}
                       </div>
                     </div>
+                    {type === 'withdrawal' && status === 'PENDING' && onCancel && (
+                      <div className="col-span-2 flex justify-end pt-2">
+                        <button onClick={(e) => { e.stopPropagation(); onCancel(); }} className="py-2 px-3 text-[10px] font-black uppercase tracking-widest rounded bg-red-500/5 border border-red-500/10 text-red-500 hover:bg-red-500/10 transition-all">Cancel Withdrawal</button>
+                      </div>
+                    )}
                  </div>
                )}
                {isPending && (
