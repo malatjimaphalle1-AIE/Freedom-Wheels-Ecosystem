@@ -8,7 +8,7 @@
       "dest": "/api/server"
     },
     {
-      "src": "/(.*)",
+      "src": "/[^.]+$",
       "dest": "/index.html"
     }
   ]

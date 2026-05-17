@@ -259,7 +259,7 @@ app.post("/api/webhooks/:webhookId", async (req, res) => {
   }
 });
 
-// Setup middleware
+// Setup middleware based on environment
 if (process.env.NODE_ENV !== "production") {
   // Development: Use Vite middleware
   const vite = await createViteServer({
@@ -267,14 +267,15 @@ if (process.env.NODE_ENV !== "production") {
     appType: "spa",
   });
   app.use(vite.middlewares);
-} else {
-  // Production: Serve static files from dist
+} else if (!process.env.VERCEL) {
+  // Local production (npm run preview): Serve static files from dist
   const distPath = path.join(process.cwd(), "dist");
   app.use(express.static(distPath));
   app.get("*", (req, res) => {
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
+// On Vercel: Don't serve static files - let Vercel CDN handle them via vercel.json
 
 // Only start server locally (not on Vercel)
 if (!process.env.VERCEL) {
