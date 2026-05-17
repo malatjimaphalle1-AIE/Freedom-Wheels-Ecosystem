@@ -26,6 +26,8 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
+              // Keep Prism in main bundle to ensure it's available before code editors load
+              if (id.includes('prismjs')) return undefined;
               if (id.includes('react')) return 'vendor-react';
               if (id.includes('lucide') || id.includes('motion')) return 'vendor-ui';
               if (id.includes('recharts')) return 'vendor-charts';
