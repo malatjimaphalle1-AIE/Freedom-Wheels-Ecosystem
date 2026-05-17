@@ -33,29 +33,30 @@ const getProfileId = async (req?: express.Request) => {
   const headerProfileId = req?.headers["x-wise-profile-id"] as string;
   if (headerProfileId) return headerProfileId;
 
-  // Use API key as cache key to avoid collisions if multiple users use different keys
   const cacheKey = apiKey.substring(0, 10);
   if (cachedProfileId[cacheKey]) return cachedProfileId[cacheKey];
 
-  let profileId = process.env.WISE_PROFILE_ID;
-  
-  if (!profileId || profileId === "" || profileId.startsWith('P')) {
-    try {
-      const profiles = await getWiseData("/v1/profiles", req);
-      if (profiles && Array.isArray(profiles) && profiles.length > 0) {
-        // Prefer business if available, then personal
-        const profile = profiles.find((p: any) => p.type === 'business') || profiles.find((p: any) => p.type === 'personal') || profiles[0];
-        profileId = profile.id.toString();
+  const configuredProfileId = process.env.WISE_PROFILE_ID?.trim();
+  if (configuredProfileId) {
+    cachedProfileId[cacheKey] = configuredProfileId;
+    return configuredProfileId;
+  }
+
+  try {
+    const profiles = await getWiseData("/v1/profiles", req);
+    if (profiles && Array.isArray(profiles) && profiles.length > 0) {
+      const profile = profiles.find((p: any) => p.type === 'business') || profiles.find((p: any) => p.type === 'personal') || profiles[0];
+      const profileId = profile.id?.toString();
+      if (profileId) {
         cachedProfileId[cacheKey] = profileId;
         return profileId;
       }
-    } catch (err) {
-      console.warn("Failed to reach Wise profile resolution:", err instanceof Error ? err.message : String(err));
-      // fallback logic if needed
     }
+  } catch (err) {
+    console.warn("Failed to reach Wise profile resolution:", err instanceof Error ? err.message : String(err));
   }
-  
-  return profileId;
+
+  return null;
 };
 
 const getWiseData = async (endpoint: string, req?: express.Request, silent = false) => {
@@ -64,7 +65,7 @@ const getWiseData = async (endpoint: string, req?: express.Request, silent = fal
     throw new Error("WISE_API_KEY is not configured.");
   }
   
-  const baseUrl = "https://api.transferwise.com";
+  const baseUrl = getWiseBaseUrl(req);
   
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000); 

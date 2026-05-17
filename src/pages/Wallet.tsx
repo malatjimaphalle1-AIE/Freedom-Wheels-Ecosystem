@@ -625,8 +625,11 @@ export default function WalletPage() {
                            "w-1.5 h-1.5 rounded-full",
                            localStorage.getItem("SOVEREIGN_WISE_KEY") ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-accent-gold/50"
                          )} />
-                         <span className="text-[8px] font-mono text-text-dim uppercase tracking-tighter">
-                           {localStorage.getItem("SOVEREIGN_WISE_KEY") ? "Wise_Protocol: Connected" : "Wise_Protocol: Simulation"}
+                         <span
+                           className="text-[8px] font-mono text-text-dim uppercase tracking-tighter"
+                           title={localStorage.getItem("SOVEREIGN_WISE_KEY") ? "Live Wise settlement is active for withdrawals." : "Connect Wise to enable live settlement mode."}
+                         >
+                           {localStorage.getItem("SOVEREIGN_WISE_KEY") ? "Wise_Protocol: LIVE" : "Wise_Protocol: Simulation"}
                          </span>
                       </div>
                     </div>
@@ -883,7 +886,7 @@ export default function WalletPage() {
               <form onSubmit={handleSaveWiseConfig} className="p-8 space-y-6">
                 <div className="p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-lg mb-6">
                    <p className="text-[9px] text-text-dim uppercase leading-relaxed">
-                     Connect your Wise account via Personal Access Token. Get your token from the <a href="https://wise.com/developers" target="_blank" rel="noreferrer" className="text-accent-blue underline">Wise Developer Dashboard</a>.
+                     Connect your Wise account via Personal Access Token. Get your token from the <a href="https://wise.com/developers" target="_blank" rel="noreferrer" className="text-accent-blue underline">Wise Developer Dashboard</a>. Once connected, vault withdrawals will use live Wise settlement instead of simulation.
                    </p>
                 </div>
                 

@@ -2,34 +2,186 @@ import { query, collection, where, getDocs, doc, serverTimestamp, runTransaction
 import { db } from '../src/lib/firebase';
 
 const AUTH_HEADER = 'x-withdrawal-secret';
-const WISE_API_BASE = 'https://api.wise.com';
-const CRYPT_API_BASE = 'https://api.cryptocompare.com';
+
+const getWiseBaseUrl = () => {
+  return process.env.WISE_ENV === 'sandbox'
+    ? 'https://api.sandbox.transferwise.tech'
+    : 'https://api.transferwise.com';
+};
+
+const wiseFetch = async (endpoint: string, method: string = 'GET', body?: any) => {
+  const apiKey = process.env.WISE_API_KEY;
+  if (!apiKey) throw new Error('Wise API key not configured');
+
+  const response = await fetch(`${getWiseBaseUrl()}${endpoint}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    let message = `Wise API request failed with status ${response.status}`;
+    try {
+      const json = JSON.parse(text);
+      message = json.message || json.error || message;
+    } catch {
+      message = text || message;
+    }
+    throw new Error(message);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+};
+
+const resolveWiseProfileId = async (): Promise<string> => {
+  const configuredProfileId = process.env.WISE_PROFILE_ID?.trim();
+  if (configuredProfileId) return configuredProfileId;
+
+  const profiles = await wiseFetch('/v1/profiles');
+  if (Array.isArray(profiles) && profiles.length > 0) {
+    const chosenProfile = profiles.find((p: any) => p.type === 'business') || profiles.find((p: any) => p.type === 'personal') || profiles[0];
+    if (chosenProfile?.id) return chosenProfile.id.toString();
+  }
+
+  throw new Error('Unable to resolve Wise profile ID. Please set WISE_PROFILE_ID or provide a valid Wise API key.');
+};
+
+const buildWiseRecipient = (currency: string, destination: string) => {
+  const normalized = destination.trim();
+
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    return {
+      profile: '',
+      currency,
+      type: 'email',
+      accountHolderName: 'Sovereign Withdrawal Recipient',
+      legalType: 'PRIVATE',
+      details: { email: normalized }
+    };
+  }
+
+  if (/^[A-Z]{2}[0-9A-Z]{13,30}$/.test(normalized)) {
+    return {
+      profile: '',
+      currency,
+      type: 'iban',
+      accountHolderName: 'Sovereign Withdrawal Recipient',
+      legalType: 'PRIVATE',
+      details: { iban: normalized }
+    };
+  }
+
+  if (/^\+?[0-9\s-]{8,25}$/.test(normalized)) {
+    return {
+      profile: '',
+      currency,
+      type: 'mobile_wallet',
+      accountHolderName: 'Sovereign Withdrawal Recipient',
+      legalType: 'PRIVATE',
+      details: { phoneNumber: normalized.replace(/[^0-9+]/g, '') }
+    };
+  }
+
+  if (currency === 'GBP' && /^(\d{2}-\d{2}-\d{8}|\d{14})$/.test(normalized)) {
+    const cleaned = normalized.replace(/-/g, '');
+    return {
+      profile: '',
+      currency,
+      type: 'sort_code',
+      accountHolderName: 'Sovereign Withdrawal Recipient',
+      legalType: 'PRIVATE',
+      details: {
+        sortCode: cleaned.slice(0, 6),
+        accountNumber: cleaned.slice(6)
+      }
+    };
+  }
+
+  if (currency === 'USD' && /^\d{9}$/.test(normalized)) {
+    return {
+      profile: '',
+      currency,
+      type: 'aba',
+      accountHolderName: 'Sovereign Withdrawal Recipient',
+      legalType: 'PRIVATE',
+      details: { aba: normalized, accountNumber: normalized }
+    };
+  }
+
+  return {
+    profile: '',
+    currency,
+    type: 'email',
+    accountHolderName: 'Sovereign Withdrawal Recipient',
+    legalType: 'PRIVATE',
+    details: { email: normalized }
+  };
+};
+
+const createWiseRecipient = async (profileId: string, currency: string, destination: string) => {
+  const payload = buildWiseRecipient(currency, destination);
+  payload.profile = profileId;
+  return wiseFetch('/v1/accounts', 'POST', payload);
+};
+
+const createWiseQuote = async (profileId: string, currency: string, amount: number) => {
+  return wiseFetch('/v1/quotes', 'POST', {
+    profile: profileId,
+    sourceCurrency: currency,
+    targetCurrency: currency,
+    sourceAmount: amount,
+    type: 'BALANCE_PAYOUT'
+  });
+};
+
+const createWiseTransfer = async (quoteId: string, targetAccountId: string) => {
+  return wiseFetch('/v1/transfers', 'POST', {
+    targetAccount: targetAccountId,
+    quote: quoteId,
+    customerTransactionId: `SOV-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`,
+    details: {
+      reference: 'Sovereign Withdrawal'
+    }
+  });
+};
+
+const fundWiseTransfer = async (profileId: string, sourceAccountId: string, transferId: string) => {
+  return wiseFetch(`/v3/profiles/${profileId}/borderless-accounts/${sourceAccountId}/payments`, 'POST', {
+    type: 'BALANCE',
+    transferId
+  });
+};
 
 // Wise bridge: create a transfer to the destination bank account
 async function wiseTransfer(withdrawal: any): Promise<{ success: boolean; providerId?: string; reason?: string }> {
   const apiKey = process.env.WISE_API_KEY;
-  const profileId = process.env.WISE_PROFILE_ID;
-  if (!apiKey || !profileId) return { success: false, reason: 'Wise credentials not configured' };
+  if (!apiKey) return { success: false, reason: 'Wise API key missing' };
 
   try {
-    // For now, simulate Wise transfer (in production, call actual Wise API)
-    // Real implementation would:
-    // 1. POST /v1/quotes to get exchange rate
-    // 2. POST /v1/transfers with quote ID
-    // 3. GET /v1/transfers/{id} to check status
-    // Using Wise SDK or direct REST API with proper auth headers
-    console.log(`[Wise] Processing ${withdrawal.amount} ${withdrawal.currency} to ${withdrawal.destination}`);
-    await new Promise((r) => setTimeout(r, 500));
+    const profileId = await resolveWiseProfileId();
+    const recipient = await createWiseRecipient(profileId, withdrawal.currency, withdrawal.destination);
+    const quote = await createWiseQuote(profileId, withdrawal.currency, withdrawal.amount);
+    const transfer = await createWiseTransfer(quote.id, recipient.id);
 
-    // Simulate 80% success rate for Wise
-    if (Math.random() > 0.2) {
-      const transferId = `TXN-WISE-${Math.floor(Math.random() * 1e6)}`;
-      return { success: true, providerId: transferId };
-    } else {
-      return { success: false, reason: 'Wise gateway rate limit or insufficient funds' };
+    if (process.env.WISE_ACCOUNT_ID) {
+      try {
+        await fundWiseTransfer(profileId, process.env.WISE_ACCOUNT_ID, transfer.id);
+      } catch (fundErr: any) {
+        console.warn('Wise funding failed:', fundErr.message || fundErr);
+      }
     }
+
+    return { success: true, providerId: transfer.id, reason: transfer.status || 'PENDING' };
   } catch (err: any) {
-    return { success: false, reason: `Wise error: ${err.message}` };
+    return { success: false, reason: err.message || 'Wise transfer failed' };
   }
 }
 
