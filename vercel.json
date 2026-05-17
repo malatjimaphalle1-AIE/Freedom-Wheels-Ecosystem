@@ -2,18 +2,6 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "env": {
-    "VITE_FIREBASE_PROJECT_ID": "@vite_firebase_project_id",
-    "VITE_FIREBASE_APP_ID": "@vite_firebase_app_id",
-    "VITE_FIREBASE_STORAGE_BUCKET": "@vite_firebase_storage_bucket",
-    "VITE_FIREBASE_DATABASE_ID": "@vite_firebase_database_id",
-    "VITE_WALLETCONNECT_PROJECT_ID": "@vite_walletconnect_project_id",
-    "GEMINI_API_KEY": "@gemini_api_key",
-    "OPEN_ROUTER_API_KEY": "@open_router_api_key",
-    "WISE_API_KEY": "@wise_api_key",
-    "WISE_PROFILE_ID": "@wise_profile_id",
-    "AI_GATEWAY_API_KEY": "@ai_gateway_api_key"
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
