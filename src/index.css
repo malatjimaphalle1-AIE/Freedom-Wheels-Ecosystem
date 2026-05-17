@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #05070a;
+  --color-surface: #0c111a;
+  --color-border-dim: #1e293b;
+  --color-accent-blue: #00f2ff;
+  --color-accent-gold: #f59e0b;
+  --color-text-main: #f8fafc;
+  --color-text-dim: #94a3b8;
+  
+  --font-sans: "Inter", -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Sovereign Palette Overrides */
+  --color-bg: #030508;
+  --color-surface: #0a0e14;
+  --color-border-dim: #161b22;
+  --color-accent-blue-bright: #33f5ff;
+
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  --animate-spin-slow: spin-slow 8s linear infinite;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-text-main antialiased relative;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+.pixel-grid {
+  background-image: radial-gradient(circle, #161b22 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.cyber-glow {
+  box-shadow: 0 0 15px rgba(0, 242, 255, 0.05);
+}
+
+@layer utilities {
+  .glow-blue {
+    text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+  }
+  .glow-gold {
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+  }
+  .border-glow {
+    box-shadow: 0 0 15px rgba(0, 242, 255, 0.15);
+  }
+  .bg-glass {
+    @apply bg-surface/60 backdrop-blur-xl border border-border-dim;
+  }
+  .geometric-grid {
+    @apply grid gap-[1px] bg-border-dim;
+  }
+  .geometric-panel {
+    @apply bg-bg p-5 flex flex-col gap-5;
+  }
+  .module-card {
+    @apply bg-surface border border-border-dim p-4 rounded-lg transition-colors hover:border-accent-blue;
+  }
+}
+
+
