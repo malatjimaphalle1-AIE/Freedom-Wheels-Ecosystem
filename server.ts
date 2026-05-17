@@ -122,6 +122,201 @@ const getWiseData = async (endpoint: string, req?: express.Request, silent = fal
   }
 };
 
+const getWiseBaseUrl = (req?: express.Request) => {
+  const envHeader = req?.headers["x-wise-env"] as string | undefined;
+  const env = envHeader || process.env.WISE_ENV;
+  return env === "sandbox"
+    ? "https://api.sandbox.transferwise.tech"
+    : "https://api.transferwise.com";
+};
+
+const wiseFetch = async (
+  endpoint: string,
+  req?: express.Request,
+  options: { method?: string; body?: any; silent?: boolean } = {}
+) => {
+  const apiKey = (req?.headers["x-wise-api-key"] as string) || process.env.WISE_API_KEY;
+  if (!apiKey) {
+    throw new Error("WISE_API_KEY is not configured.");
+  }
+
+  const baseUrl = getWiseBaseUrl(req);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const response = await fetch(`${baseUrl}${endpoint}`, {
+      method: options.method || "GET",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      let errorDetail = "";
+      try {
+        errorDetail = await response.text();
+      } catch (e) {
+        errorDetail = "Could not read error body";
+      }
+
+      if (!options.silent || response.status !== 404) {
+        console.error(`Wise API Error [${response.status}] for ${endpoint}:`, errorDetail);
+      }
+
+      let clientMessage = `Wise API Error: ${response.status}`;
+      if (response.status === 401) clientMessage = "Wise Authentication Failed: Please check your API Key in Settings.";
+      if (response.status === 403) clientMessage = "Wise Access Denied: Ensure your API Key has correct permissions and IP whitelisting is disabled (or includes this server).";
+      if (response.status === 404) clientMessage = "Wise Profile/Resource Not Found: Please verify your Profile ID.";
+
+      const err = new Error(clientMessage);
+      (err as any).status = response.status;
+      throw err;
+    }
+
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      if (!options.silent) console.error(`Failed to parse Wise JSON response from ${endpoint}:`, text.substring(0, 100));
+      throw new Error("Invalid JSON response from Wise");
+    }
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (!options.silent) {
+      if (err.name === 'AbortError') {
+        console.error(`Wise fetch timed out for ${endpoint}`);
+      } else {
+        console.error(`Wise fetch failed for ${endpoint}:`, err.message);
+      }
+    }
+    throw err;
+  }
+};
+
+const buildWiseRecipient = (currency: string, destination: string) => {
+  const normalized = destination.trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    return {
+      profile: "",
+      currency,
+      type: "email",
+      accountHolderName: "Sovereign Withdrawal Recipient",
+      legalType: "PRIVATE",
+      details: { email: normalized }
+    };
+  }
+
+  if (/^[A-Z]{2}[0-9A-Z]{13,30}$/.test(normalized)) {
+    return {
+      profile: "",
+      currency,
+      type: "iban",
+      accountHolderName: "Sovereign Withdrawal Recipient",
+      legalType: "PRIVATE",
+      details: { iban: normalized }
+    };
+  }
+
+  if (/^\+?[0-9\s-]{8,25}$/.test(normalized)) {
+    return {
+      profile: "",
+      currency,
+      type: "mobile_wallet",
+      accountHolderName: "Sovereign Withdrawal Recipient",
+      legalType: "PRIVATE",
+      details: { phoneNumber: normalized.replace(/[^0-9+]/g, "") }
+    };
+  }
+
+  if (currency === "GBP" && /^(\d{2}-\d{2}-\d{8}|\d{14})$/.test(normalized)) {
+    const cleaned = normalized.replace(/-/g, "");
+    return {
+      profile: "",
+      currency,
+      type: "sort_code",
+      accountHolderName: "Sovereign Withdrawal Recipient",
+      legalType: "PRIVATE",
+      details: {
+        sortCode: cleaned.slice(0, 6),
+        accountNumber: cleaned.slice(6)
+      }
+    };
+  }
+
+  if (currency === "USD" && /^\d{9}$/.test(normalized)) {
+    return {
+      profile: "",
+      currency,
+      type: "aba",
+      accountHolderName: "Sovereign Withdrawal Recipient",
+      legalType: "PRIVATE",
+      details: { aba: normalized, accountNumber: normalized }
+    };
+  }
+
+  return {
+    profile: "",
+    currency,
+    type: "email",
+    accountHolderName: "Sovereign Withdrawal Recipient",
+    legalType: "PRIVATE",
+    details: { email: normalized }
+  };
+};
+
+const createWiseRecipient = async (profileId: string, currency: string, destination: string, req?: express.Request) => {
+  const recipientPayload = buildWiseRecipient(currency, destination);
+  recipientPayload.profile = profileId;
+
+  return wiseFetch("/v1/accounts", req, {
+    method: "POST",
+    body: recipientPayload
+  });
+};
+
+const createWiseQuote = async (profileId: string, sourceCurrency: string, targetCurrency: string, amount: number, req?: express.Request) => {
+  return wiseFetch("/v1/quotes", req, {
+    method: "POST",
+    body: {
+      profile: profileId,
+      sourceCurrency,
+      targetCurrency,
+      sourceAmount: amount,
+      type: "BALANCE_PAYOUT"
+    }
+  });
+};
+
+const createWiseTransfer = async (quoteId: string, targetAccountId: string, req?: express.Request) => {
+  return wiseFetch("/v1/transfers", req, {
+    method: "POST",
+    body: {
+      targetAccount: targetAccountId,
+      quote: quoteId,
+      customerTransactionId: `SOV-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`,
+      details: {
+        reference: "Sovereign Withdrawal"
+      }
+    }
+  });
+};
+
+const fundWiseTransfer = async (profileId: string, sourceAccountId: string, transferId: string, req?: express.Request) => {
+  return wiseFetch(`/v3/profiles/${profileId}/borderless-accounts/${sourceAccountId}/payments`, req, {
+    method: "POST",
+    body: {
+      type: "BALANCE",
+      transferId
+    }
+  });
+};
+
 app.get("/api/wise/balance", async (req, res) => {
   const mockBalances = [
     { amount: { value: 8500.00, currency: "USD" }, type: "STANDARD", name: "Main_Vault" },
@@ -213,6 +408,60 @@ app.get("/api/wise/transactions", async (req, res) => {
   }
 });
 
+app.post("/api/wise/withdraw", async (req, res) => {
+  try {
+    const { amount, currency, destination } = req.body;
+    const requestedAmount = Number(amount);
+
+    if (!requestedAmount || Number.isNaN(requestedAmount) || requestedAmount <= 0) {
+      return res.status(400).json({ error: "Invalid amount provided." });
+    }
+
+    if (!currency || typeof currency !== "string") {
+      return res.status(400).json({ error: "Currency is required." });
+    }
+
+    if (!destination || typeof destination !== "string" || destination.trim().length === 0) {
+      return res.status(400).json({ error: "Destination is required." });
+    }
+
+    const profileId = await getProfileId(req);
+    if (!profileId) {
+      return res.status(400).json({ error: "Wise profile not available. Provide x-wise-profile-id or set WISE_PROFILE_ID." });
+    }
+
+    const recipient = await createWiseRecipient(profileId, currency.toUpperCase(), destination, req);
+    const quote = await createWiseQuote(profileId, currency.toUpperCase(), currency.toUpperCase(), requestedAmount, req);
+    const transfer = await createWiseTransfer(quote.id, recipient.id, req);
+
+    let funding = null;
+    const sourceAccountId = process.env.WISE_ACCOUNT_ID;
+    if (sourceAccountId) {
+      try {
+        funding = await fundWiseTransfer(profileId, sourceAccountId, transfer.id, req);
+      } catch (fundErr: any) {
+        console.warn("Wise funding step failed:", fundErr.message);
+      }
+    }
+
+    res.json({
+      id: transfer.id,
+      status: transfer.status || "PENDING",
+      recipient,
+      quote,
+      transfer,
+      funded: Boolean(funding),
+      funding
+    });
+  } catch (err: any) {
+    console.error("Wise withdraw failure:", err.message || err);
+    if (req?.headers["x-wise-api-key"] || process.env.WISE_API_KEY) {
+      return res.status(err.status || 500).json({ error: err.message || "Wise withdrawal failed." });
+    }
+    res.status(500).json({ error: "Wise withdrawal cannot be completed without a configured API key." });
+  }
+});
+
 app.post("/api/leads/enrich", async (req, res) => {
   try {
     const { name, email } = req.body;
@@ -279,7 +528,7 @@ if (process.env.NODE_ENV !== "production") {
 
 // Only start server locally (not on Vercel)
 if (!process.env.VERCEL) {
-  const PORT = process.env.PORT || 3000;
+  const PORT = parseInt(process.env.PORT || "3000", 10);
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });

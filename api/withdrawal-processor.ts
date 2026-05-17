@@ -1,4 +1,3 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { query, collection, where, getDocs, doc, serverTimestamp, runTransaction, orderBy, limit } from 'firebase/firestore';
 import { db } from '../src/lib/firebase';
 
@@ -71,7 +70,7 @@ async function processExternalTransfer(withdrawal: any): Promise<{ success: bool
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   try {
     // Allow requests from:
     // 1. Vercel cron (no header needed, trusted infrastructure)
@@ -90,7 +89,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let processed = 0;
     for (const docSnap of snap.docs) {
-      const w = { id: docSnap.id, ...docSnap.data() } as any;
+      const snapshotData = docSnap.data() as any;
+      const w = { id: docSnap.id, ...snapshotData } as any;
 
       // Attempt to claim and process the withdrawal in a transaction
       try {
