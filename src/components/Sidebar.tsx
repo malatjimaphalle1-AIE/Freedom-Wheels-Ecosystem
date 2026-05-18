@@ -11,7 +11,8 @@ import {
   TrendingUp,
   Wallet,
   Zap,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  User
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -24,6 +25,7 @@ const navigation = [
   { name: "Affiliate Engine", href: "/referrals", icon: Network },
   { name: "Marketplace", href: "/marketplace", icon: ShoppingBag },
   { name: "Wallet & Revenue", href: "/wallet", icon: Wallet },
+  { name: "Profile", href: "/profile", icon: User },
   { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
   { name: "Knowledge Base", href: "/knowledge", icon: Book },
 ];
