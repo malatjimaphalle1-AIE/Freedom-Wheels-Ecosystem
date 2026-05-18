@@ -42,20 +42,19 @@ export default function Header({ onSearchClick }: { onSearchClick?: () => void }
         
         {user ? (
           <div className="flex items-center gap-4">
-            <div className="flex flex-col items-end">
+            <Link to="/profile" className="flex flex-col items-end hover:opacity-80 transition-opacity">
               <span className="text-[10px] font-black uppercase tracking-widest text-text-main">{user.email?.split('@')[0]}</span>
-              <button 
-                onClick={logOut}
-                className="text-[9px] font-bold text-text-dim hover:text-red-400 uppercase tracking-widest transition-colors"
-              >
-                Disconnect_Session
-              </button>
-            </div>
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent-blue to-accent-gold p-[1px]">
-              <div className="w-full h-full rounded-full bg-surface flex items-center justify-center text-[10px] font-black">
-                {user.email?.[0].toUpperCase()}
+              <span className="text-[9px] font-bold text-accent-blue uppercase tracking-widest">View Profile</span>
+            </Link>
+            <Link to="/profile" className="w-9 h-9 rounded-full bg-gradient-to-br from-accent-blue to-accent-gold p-[1px] hover:shadow-[0_0_15px_rgba(0,242,255,0.4)] transition-all">
+              <div className="w-full h-full rounded-full bg-surface flex items-center justify-center text-[10px] font-black overflow-hidden">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.email || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  user.email?.[0].toUpperCase()
+                )}
               </div>
-            </div>
+            </Link>
           </div>
         ) : (
           <Link 

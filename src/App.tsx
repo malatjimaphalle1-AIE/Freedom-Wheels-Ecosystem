@@ -18,6 +18,7 @@ import AutomationHub from "./pages/AutomationHub";
 import JoinPage from "./pages/JoinPage";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import Settings from "./pages/Settings";
+import UserProfile from "./pages/UserProfile";
 import OnboardingTour from "./components/OnboardingTour";
 import ErrorBoundary from "./components/ErrorBoundary";
 import MainLayout from "./components/MainLayout";
@@ -72,6 +73,7 @@ export default function App() {
                 <Route path="/automation" element={<AutomationHub />} />
                 <Route path="/knowledge" element={<KnowledgeBase />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/profile" element={<UserProfile />} />
               </Route>
               <Route path="/join" element={<JoinPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

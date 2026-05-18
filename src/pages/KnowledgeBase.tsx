@@ -1,7 +1,8 @@
-import React, { useState, ReactNode } from "react";
+import React, { useState, ReactNode, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Book, Search, ChevronRight, Cpu, Target, Zap, Shield, Globe, HelpCircle, FileText, ArrowRight, ExternalLink, Play, Menu, X } from "lucide-react";
 import { cn } from "../lib/utils";
+import { useAuth } from "../contexts/AuthContext";
 
 export const sections = [
   {
@@ -52,6 +53,16 @@ export default function KnowledgeBase() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeVideo, setActiveVideo] = useState<{ id: string; title: string; desc?: string; duration?: string; thumbnail?: string } | null>(null);
   const contentAreaRef = React.useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+
+  // Get Master Instructor info
+  const masterInstructor = {
+    name: 'MAPHALLE MALATJI',
+    role: 'Master Instructor',
+    photoURL: user?.photoURL || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=2187&auto=format&fit=crop',
+    quote: 'True wealth is built through autonomous systems designed with precision and scaled with intelligence.',
+    isMaster: user?.email === 'malatjimaphalle1@gmail.com'
+  };
 
   const filteredSections = sections.map(section => ({
     ...section,
@@ -112,7 +123,7 @@ export default function KnowledgeBase() {
                           <Play className="w-4 h-4 fill-bg" /> Launch_Playback
                       </button>
                       <div className="hidden md:flex items-center gap-4 text-text-dim text-[10px] font-mono tracking-widest uppercase">
-                         <span>Instructor: The Architect</span>
+                         <span>Instructor: {masterInstructor.name}</span>
                          <span className="w-1 h-1 rounded-full bg-border-dim" />
                          <span>45:00 Content Duration</span>
                       </div>
@@ -384,19 +395,22 @@ export default function KnowledgeBase() {
 
                     <div className="p-6 bg-bg border border-border-dim rounded-2xl space-y-6">
                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-accent-gold border border-accent-gold/50 flex items-center justify-center text-bg shadow-lg">
+                          <div className="w-12 h-12 rounded-xl bg-accent-gold border border-accent-gold/50 flex items-center justify-center text-bg shadow-lg overflow-hidden">
                              <img 
-                               src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=2187&auto=format&fit=crop" 
+                               src={masterInstructor.photoURL}
                                className="w-full h-full object-cover rounded-xl"
-                               alt="The Architect"
+                               alt={masterInstructor.name}
                              />
                           </div>
                           <div>
-                             <div className="text-[9px] font-black uppercase text-accent-gold tracking-widest mb-0.5">Primary_Instructor</div>
-                             <div className="text-sm font-black uppercase text-text-main">The_Architect</div>
+                             <div className="text-[9px] font-black uppercase text-accent-gold tracking-widest mb-0.5 flex items-center gap-2">
+                               {masterInstructor.isMaster && <span>🎓</span>}
+                               {masterInstructor.role}
+                             </div>
+                             <div className="text-sm font-black uppercase text-text-main">{masterInstructor.name}</div>
                           </div>
                        </div>
-                       <p className="text-[10px] text-text-dim leading-relaxed italic">"Simplicity is the ultimate sophistication in neural revenue architecture."</p>
+                       <p className="text-[10px] text-text-dim leading-relaxed italic">"{masterInstructor.quote}"</p>
                     </div>
 
                     <div className="space-y-4">
