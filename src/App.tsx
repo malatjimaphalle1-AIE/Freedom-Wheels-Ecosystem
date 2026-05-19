@@ -4,6 +4,7 @@
  */
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import EngineBuilder from "./pages/EngineBuilder";
@@ -79,6 +80,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>
+        <SpeedInsights />
       </AuthProvider>
     </ErrorBoundary>
   );
