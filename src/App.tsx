@@ -26,6 +26,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { EngineSyncManager } from "./components/EngineSyncManager";
 import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -79,6 +80,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>
+        <Analytics />
       </AuthProvider>
     </ErrorBoundary>
   );
