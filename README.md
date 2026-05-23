@@ -1,20 +1,38 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+<p align="center">
+  <img src="./assets/images/freedom-wheels-banner.svg" alt="Freedom Wheels Ecosystem Banner" width="100%" />
+</p>
 
-# Run and deploy your AI Studio app
+<h1 align="center">🚀 Freedom Wheels™ Ecosystem</h1>
 
-This contains everything you need to run your app locally.
+<h3 align="center">
+Drive Your Freedom. Automate Your World.
+</h3>
 
-View your app in AI Studio: https://ai.studio/apps/79cbb466-7410-498c-aa65-5474e0e4efa0
+<p align="center">
+  <strong>An Autonomous AI-Powered Business Ecosystem for Digital Sovereignty, Automation, and Economic Freedom.</strong>
+</p>
 
-## Run Locally
+<p align="center">
+  <a href="https://github.com/malatjimaphalle1-AIE/Freedom-Wheels-Ecosystem/stargazers">
+    <img src="https://img.shields.io/github/stars/malatjimaphalle1-AIE/Freedom-Wheels-Ecosystem?style=for-the-badge" />
+  </a>
+  <a href="https://github.com/malatjimaphalle1-AIE/Freedom-Wheels-Ecosystem/network/members">
+    <img src="https://img.shields.io/github/forks/malatjimaphalle1-AIE/Freedom-Wheels-Ecosystem?style=for-the-badge" />
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/github/license/malatjimaphalle1-AIE/Freedom-Wheels-Ecosystem?style=for-the-badge" />
+  </a>
+  <img src="https://img.shields.io/badge/AI-Powered-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Digital-Sovereignty-purple?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Automation-Enabled-green?style=for-the-badge" />
+</p>
 
-**Prerequisites:**  Node.js
+---
 
+> **Freedom Wheels™ Ecosystem** is a sovereign AI automation platform designed to help entrepreneurs, creators, and organizations build autonomous systems that generate income, automate operations, and scale digital businesses.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 🌍 Mission
+To democratize advanced technology and empower people worldwide to design self-sustaining ecosystems that create freedom, wealth, and lasting impact.
+
+### 🧠 Vision
+A future where anyone can own intelligent systems that work continuously to automate business, generate value, and unlock economic independence.
