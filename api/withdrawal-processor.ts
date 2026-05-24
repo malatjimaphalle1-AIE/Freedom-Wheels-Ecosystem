@@ -86,11 +86,23 @@ export default async function handler(req: any, res: any) {
     const q = query(
       collection(db, 'withdrawals'),
       where('status', '==', 'PENDING'),
-      orderBy('timestamp', 'asc'),
+      orderBy('createdAt', 'asc'),
       limit(10)
     ) as Query;
 
-    const snap = await getDocs(q);
+    let snap = await getDocs(q);
+
+    // Backward compatibility: older records may not have createdAt and used timestamp.
+    // If the primary query returns no rows, attempt the legacy field.
+    if (snap.empty) {
+      const legacyQuery = query(
+        collection(db, 'withdrawals'),
+        where('status', '==', 'PENDING'),
+        orderBy('timestamp', 'asc'),
+        limit(10)
+      ) as Query;
+      snap = await getDocs(legacyQuery);
+    }
 
     if (snap.empty) {
       console.log('[WITHDRAWAL_PROCESSOR] No pending withdrawals to process');

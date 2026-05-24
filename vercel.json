@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "routes": [
     {
+      "src": "/api/withdrawal-processor",
+      "dest": "/api/withdrawal-processor"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/server"
     },
