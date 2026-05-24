@@ -678,5 +678,6 @@ export default function UserProfile() {
         </AnimatePresence>
       </div>
     </div>
+    </div>
   );
 }

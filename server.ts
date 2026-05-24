@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import { getWiseTransferStatus } from "./api/wise";
 
 if (process.env.NODE_ENV !== "production") {
   const { config } = await import("dotenv");
@@ -448,6 +449,7 @@ app.post("/api/wise/withdraw", async (req, res) => {
     res.json({
       id: transfer.id,
       status: transfer.status || "PENDING",
+      statusReason: transfer.statusReason || null,
       recipient,
       quote,
       transfer,
@@ -460,6 +462,34 @@ app.post("/api/wise/withdraw", async (req, res) => {
       return res.status(err.status || 500).json({ error: err.message || "Wise withdrawal failed." });
     }
     res.status(500).json({ error: "Wise withdrawal cannot be completed without a configured API key." });
+  }
+});
+
+app.get("/api/wise/withdraw/:id/status", async (req, res) => {
+  try {
+    const transferId = req.params.id;
+    if (!transferId) {
+      return res.status(400).json({ error: "Transfer id is required." });
+    }
+
+    const transfer = await getWiseTransferStatus(transferId, {
+      apiKey: (req.headers["x-wise-api-key"] as string) || process.env.WISE_API_KEY,
+      wiseEnv: req.headers["x-wise-env"] as string | undefined,
+    });
+
+    return res.json({
+      id: transfer?.id || transferId,
+      status: transfer?.status || "UNKNOWN",
+      statusReason: transfer?.statusReason || null,
+      created: transfer?.created || null,
+      estimatedDelivery: transfer?.targetValue?.deliveryEstimate || null,
+      raw: transfer
+    });
+  } catch (err: any) {
+    console.error("Wise withdraw status failure:", err.message || err);
+    return res.status(err.status || 500).json({
+      error: err.message || "Failed to fetch withdrawal status."
+    });
   }
 });
 

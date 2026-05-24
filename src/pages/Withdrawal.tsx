@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ArrowUpRight, AlertCircle, CheckCircle, Clock } from 'lucide-react';
-import { useAuth } from '../lib/auth';
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 interface WithdrawalHistory {
@@ -11,6 +11,7 @@ interface WithdrawalHistory {
   createdAt: string;
   processedAt?: string;
   failReason?: string;
+  statusReason?: string;
 }
 
 export default function Withdrawal() {
@@ -37,6 +38,8 @@ export default function Withdrawal() {
   // History state
   const [history, setHistory] = useState<WithdrawalHistory[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [liveWithdrawalId, setLiveWithdrawalId] = useState<string | null>(null);
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -51,6 +54,62 @@ export default function Withdrawal() {
     loadBalance();
     loadHistory();
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (!liveWithdrawalId) return;
+
+    let active = true;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let retries = 0;
+    const terminal = new Set(['COMPLETED', 'SUCCESS', 'CANCELLED', 'FAILED', 'ERROR', 'REJECTED']);
+
+    const pollStatus = async () => {
+      try {
+        const token = await user?.getIdToken();
+        const response = await fetch(`/api/wise/withdraw/${liveWithdrawalId}/status`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Could not fetch live withdrawal status');
+        }
+
+        if (!active) return;
+        const status = String(data.status || 'UNKNOWN').toUpperCase();
+        setLiveStatus(status);
+        setStatusType('info');
+        setStatusMessage(`Live status for ${liveWithdrawalId}: ${status}`);
+
+        if (terminal.has(status)) {
+          setStatusType(status === 'COMPLETED' || status === 'SUCCESS' ? 'success' : 'error');
+          loadHistory();
+          loadBalance();
+          setLiveWithdrawalId(null);
+          return;
+        }
+
+        retries = 0;
+      } catch (err: any) {
+        retries += 1;
+        if (!active) return;
+        setStatusType('error');
+        setStatusMessage(`Live status retry ${retries}: ${err.message}`);
+      }
+
+      if (active) {
+        pollTimer = setTimeout(pollStatus, retries > 0 ? 7000 : 4000);
+      }
+    };
+
+    pollStatus();
+    return () => {
+      active = false;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
+  }, [liveWithdrawalId, user]);
 
   const loadBalance = async () => {
     try {
@@ -191,6 +250,8 @@ export default function Withdrawal() {
 
       setStatusMessage(`✓ Withdrawal initiated! ID: ${data.id}`);
       setStatusType('success');
+      setLiveWithdrawalId(data.id);
+      setLiveStatus(String(data.status || 'PENDING').toUpperCase());
 
       // Reset form
       setAmount('');
@@ -395,6 +456,12 @@ export default function Withdrawal() {
               >
                 {submitting ? 'Processing...' : 'Initiate Withdrawal'}
               </button>
+              {liveWithdrawalId && (
+                <div className="p-3 bg-blue-900/20 border border-blue-500 rounded text-xs text-blue-300">
+                  Real-time tracking active for <span className="font-mono">{liveWithdrawalId}</span>
+                  {liveStatus ? <span className="ml-2">({liveStatus})</span> : null}
+                </div>
+              )}
             </form>
           </div>
 
