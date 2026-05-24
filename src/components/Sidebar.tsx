@@ -46,7 +46,7 @@ export default function Sidebar() {
               key={item.name}
               to={item.href}
               className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all group",
+                "flex items-center gap-3 px-4 py-3 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors group",
                 isActive 
                   ? "bg-accent-blue/10 text-accent-blue border border-accent-blue/20" 
                   : "text-text-dim hover:bg-surface hover:text-text-main"

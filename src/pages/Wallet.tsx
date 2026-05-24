@@ -913,7 +913,7 @@ export default function WalletPage() {
                 </div>
 
                 <div className="pt-4 flex gap-4">
-                  <button type="submit" className="flex-1 py-4 bg-accent-blue text-bg text-[10px] font-black uppercase tracking-[0.2em] rounded hover:shadow-[0_0_20px_rgba(0,242,255,0.4)] transition-all">Establish_Bridge</button>
+                  <button type="submit" className="flex-1 py-4 bg-accent-blue text-bg text-[10px] font-black uppercase tracking-[0.2em] rounded transition-colors hover:bg-accent-blue/90">Establish_Bridge</button>
                   <button 
                     type="button" 
                     onClick={() => {

@@ -166,14 +166,14 @@ export default function NotificationCenter() {
                             {!notification.read && (
                               <button 
                                 onClick={() => markAsRead(notification.id)}
-                                className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-accent-blue hover:scale-105 transition-all"
+                                className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-accent-blue transition-colors hover:text-accent-blue/80"
                               >
                                 <Check className="w-3 h-3" /> Acknowledge
                               </button>
                             )}
                             <button 
                               onClick={() => deleteNotification(notification.id)}
-                              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-red-400 hover:scale-105 transition-all"
+                              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-red-400 transition-colors hover:text-red-300"
                             >
                               <Trash2 className="w-3 h-3" /> Expunge
                             </button>

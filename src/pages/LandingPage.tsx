@@ -34,7 +34,7 @@ export default function LandingPage() {
             <a href="#how-it-works" className="hover:text-accent-blue transition-colors">Protocol</a>
             <a href="#marketplace" className="hover:text-accent-blue transition-colors">Marketplace</a>
           </div>
-          <Link to="/dashboard" className="px-5 py-2 bg-accent-blue text-bg text-xs font-black uppercase tracking-widest rounded transition-all hover:bg-accent-gold transform hover:scale-105">
+          <Link to="/dashboard" className="px-5 py-2 bg-accent-blue text-bg text-xs font-black uppercase tracking-widest rounded transition-colors hover:bg-accent-gold">
             Command Center
           </Link>
         </div>
