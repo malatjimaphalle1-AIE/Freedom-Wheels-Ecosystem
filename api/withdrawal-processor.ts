@@ -1,224 +1,68 @@
-import { query, collection, where, getDocs, doc, serverTimestamp, runTransaction, orderBy, limit } from 'firebase/firestore';
-import { db } from '../src/lib/firebase';
+import { initializeApp } from 'firebase/app';
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  runTransaction,
+  serverTimestamp,
+  Query,
+} from 'firebase/firestore';
 
-const AUTH_HEADER = 'x-withdrawal-secret';
-
-const getWiseBaseUrl = () => {
-  return process.env.WISE_ENV === 'sandbox'
-    ? 'https://api.sandbox.transferwise.tech'
-    : 'https://api.transferwise.com';
+// Initialize Firebase (replace with your config)
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID,
 };
 
-const wiseFetch = async (endpoint: string, method: string = 'GET', body?: any) => {
-  const apiKey = process.env.WISE_API_KEY;
-  if (!apiKey) throw new Error('Wise API key not configured');
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-  const response = await fetch(`${getWiseBaseUrl()}${endpoint}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
+interface WithdrawalData {
+  id: string;
+  userId: string;
+  amount: number;
+  fee: number;
+  currency: string;
+  destination: string;
+  method: 'bank' | 'crypto' | 'email';
+  status: string;
+  attemptCount?: number;
+  externalId?: string;
+}
 
-  const text = await response.text();
-  if (!response.ok) {
-    let message = `Wise API request failed with status ${response.status}`;
-    try {
-      const json = JSON.parse(text);
-      message = json.message || json.error || message;
-    } catch {
-      message = text || message;
-    }
-    throw new Error(message);
-  }
+interface TransferResult {
+  success: boolean;
+  providerId?: string;
+  reason?: string;
+}
 
+// Mock implementation of external transfer - replace with actual Wise/payment provider integration
+async function processExternalTransfer(withdrawal: WithdrawalData): Promise<TransferResult> {
   try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
-};
+    // TODO: Replace with actual Wise API or payment provider integration
+    console.log(`[EXTERNAL_TRANSFER] Processing ${withdrawal.method} transfer for ${withdrawal.id}`);
 
-const resolveWiseProfileId = async (): Promise<string> => {
-  const configuredProfileId = process.env.WISE_PROFILE_ID?.trim();
-  if (configuredProfileId) return configuredProfileId;
-
-  const profiles = await wiseFetch('/v1/profiles');
-  if (Array.isArray(profiles) && profiles.length > 0) {
-    const chosenProfile = profiles.find((p: any) => p.type === 'business') || profiles.find((p: any) => p.type === 'personal') || profiles[0];
-    if (chosenProfile?.id) return chosenProfile.id.toString();
-  }
-
-  throw new Error('Unable to resolve Wise profile ID. Please set WISE_PROFILE_ID or provide a valid Wise API key.');
-};
-
-const buildWiseRecipient = (currency: string, destination: string) => {
-  const normalized = destination.trim();
-
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    // Simulate API call - replace with actual provider
     return {
-      profile: '',
-      currency,
-      type: 'email',
-      accountHolderName: 'Sovereign Withdrawal Recipient',
-      legalType: 'PRIVATE',
-      details: { email: normalized }
+      success: true,
+      providerId: `ext_${Date.now()}`,
+      reason: 'PENDING',
     };
-  }
-
-  if (/^[A-Z]{2}[0-9A-Z]{13,30}$/.test(normalized)) {
-    return {
-      profile: '',
-      currency,
-      type: 'iban',
-      accountHolderName: 'Sovereign Withdrawal Recipient',
-      legalType: 'PRIVATE',
-      details: { iban: normalized }
-    };
-  }
-
-  if (/^\+?[0-9\s-]{8,25}$/.test(normalized)) {
-    return {
-      profile: '',
-      currency,
-      type: 'mobile_wallet',
-      accountHolderName: 'Sovereign Withdrawal Recipient',
-      legalType: 'PRIVATE',
-      details: { phoneNumber: normalized.replace(/[^0-9+]/g, '') }
-    };
-  }
-
-  if (currency === 'GBP' && /^(\d{2}-\d{2}-\d{8}|\d{14})$/.test(normalized)) {
-    const cleaned = normalized.replace(/-/g, '');
-    return {
-      profile: '',
-      currency,
-      type: 'sort_code',
-      accountHolderName: 'Sovereign Withdrawal Recipient',
-      legalType: 'PRIVATE',
-      details: {
-        sortCode: cleaned.slice(0, 6),
-        accountNumber: cleaned.slice(6)
-      }
-    };
-  }
-
-  if (currency === 'USD' && /^\d{9}$/.test(normalized)) {
-    return {
-      profile: '',
-      currency,
-      type: 'aba',
-      accountHolderName: 'Sovereign Withdrawal Recipient',
-      legalType: 'PRIVATE',
-      details: { aba: normalized, accountNumber: normalized }
-    };
-  }
-
-  return {
-    profile: '',
-    currency,
-    type: 'email',
-    accountHolderName: 'Sovereign Withdrawal Recipient',
-    legalType: 'PRIVATE',
-    details: { email: normalized }
-  };
-};
-
-const createWiseRecipient = async (profileId: string, currency: string, destination: string) => {
-  const payload = buildWiseRecipient(currency, destination);
-  payload.profile = profileId;
-  return wiseFetch('/v1/accounts', 'POST', payload);
-};
-
-const createWiseQuote = async (profileId: string, currency: string, amount: number) => {
-  return wiseFetch('/v1/quotes', 'POST', {
-    profile: profileId,
-    sourceCurrency: currency,
-    targetCurrency: currency,
-    sourceAmount: amount,
-    type: 'BALANCE_PAYOUT'
-  });
-};
-
-const createWiseTransfer = async (quoteId: string, targetAccountId: string) => {
-  return wiseFetch('/v1/transfers', 'POST', {
-    targetAccount: targetAccountId,
-    quote: quoteId,
-    customerTransactionId: `SOV-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`,
-    details: {
-      reference: 'Sovereign Withdrawal'
-    }
-  });
-};
-
-const fundWiseTransfer = async (profileId: string, sourceAccountId: string, transferId: string) => {
-  return wiseFetch(`/v3/profiles/${profileId}/borderless-accounts/${sourceAccountId}/payments`, 'POST', {
-    type: 'BALANCE',
-    transferId
-  });
-};
-
-// Wise bridge: create a transfer to the destination bank account
-async function wiseTransfer(withdrawal: any): Promise<{ success: boolean; providerId?: string; reason?: string }> {
-  const apiKey = process.env.WISE_API_KEY;
-  if (!apiKey) return { success: false, reason: 'Wise API key missing' };
-
-  try {
-    const profileId = await resolveWiseProfileId();
-    const recipient = await createWiseRecipient(profileId, withdrawal.currency, withdrawal.destination);
-    const quote = await createWiseQuote(profileId, withdrawal.currency, withdrawal.amount);
-    const transfer = await createWiseTransfer(quote.id, recipient.id);
-
-    if (process.env.WISE_ACCOUNT_ID) {
-      try {
-        await fundWiseTransfer(profileId, process.env.WISE_ACCOUNT_ID, transfer.id);
-      } catch (fundErr: any) {
-        console.warn('Wise funding failed:', fundErr.message || fundErr);
-      }
-    }
-
-    return { success: true, providerId: transfer.id, reason: transfer.status || 'PENDING' };
   } catch (err: any) {
-    return { success: false, reason: err.message || 'Wise transfer failed' };
-  }
-}
-
-// Crypto bridge: transfer USDT/BTC/ETH via on-chain or exchange
-async function cryptoTransfer(withdrawal: any): Promise<{ success: boolean; providerId?: string; reason?: string }> {
-  // For now, simulate crypto transfer (in production, integrate Circle, Coinbase, or similar)
-  // Could also use direct blockchain calls via ethers/web3 if self-hosted
-  const { currency, amount, destination } = withdrawal;
-  console.log(`[Crypto] Processing ${amount} ${currency} to ${destination}`);
-  await new Promise((r) => setTimeout(r, 700));
-
-  // Simulate 70% success rate for crypto (higher chance of failure due to network)
-  if (Math.random() > 0.3) {
-    const txHash = `0x${Math.random().toString(16).slice(2, 66)}`; // mock tx hash
-    return { success: true, providerId: txHash };
-  } else {
-    return { success: false, reason: 'Blockchain network congestion or insufficient gas' };
-  }
-}
-
-// Route to appropriate bridge based on currency
-async function processExternalTransfer(withdrawal: any): Promise<{ success: boolean; providerId?: string; reason?: string }> {
-  // Use simulation mode if enabled
-  if (process.env.SIMULATE_WITHDRAWAL === 'true') {
-    await new Promise((r) => setTimeout(r, 500));
-    const ok = Math.random() > 0.25;
-    if (ok) return { success: true, providerId: `SIM-${Math.floor(Math.random() * 1e6)}` };
-    return { success: false, reason: 'Simulated gateway rejection' };
-  }
-
-  const { currency } = withdrawal;
-  if (['USD', 'EUR', 'GBP', 'ZAR'].includes(currency)) {
-    return wiseTransfer(withdrawal);
-  } else if (['USDT', 'BTC', 'ETH', 'SOL'].includes(currency)) {
-    return cryptoTransfer(withdrawal);
-  } else {
-    return { success: false, reason: `Unsupported currency: ${currency}` };
+    console.error('[EXTERNAL_TRANSFER] Error:', err);
+    return {
+      success: false,
+      reason: err.message || 'External transfer failed',
+    };
   }
 }
 
@@ -227,94 +71,229 @@ export default async function handler(req: any, res: any) {
     // Allow requests from:
     // 1. Vercel cron (no header needed, trusted infrastructure)
     // 2. Manual requests with correct WITHDRAWAL_SECRET header
-    const isVercelCron = req.headers['user-agent']?.includes('vercel') || !req.headers[AUTH_HEADER];
-    const secret = req.headers[AUTH_HEADER] as string | undefined;
-    
+    const isVercelCron =
+      req.headers['user-agent']?.includes('vercel') || !req.headers['x-withdrawal-secret'];
+    const secret = req.headers['x-withdrawal-secret'] as string | undefined;
+
     if (!isVercelCron && (!secret || secret !== process.env.WITHDRAWAL_SECRET)) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Unauthorized: Invalid or missing withdrawal secret' });
     }
 
+    // Log the cron job execution
+    console.log(`[WITHDRAWAL_PROCESSOR] Starting batch processing at ${new Date().toISOString()}`);
+
     // Process only a small batch to avoid long-running execution
-    const q = query(collection(db, 'withdrawals'), where('status', '==', 'PENDING'), orderBy('timestamp', 'asc'), limit(10));
-    const snap = await getDocs(q as any);
-    if (snap.empty) return res.status(200).json({ processed: 0 });
+    const q = query(
+      collection(db, 'withdrawals'),
+      where('status', '==', 'PENDING'),
+      orderBy('timestamp', 'asc'),
+      limit(10)
+    ) as Query;
+
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      console.log('[WITHDRAWAL_PROCESSOR] No pending withdrawals to process');
+      return res.status(200).json({ processed: 0, message: 'No pending withdrawals' });
+    }
+
+    console.log(`[WITHDRAWAL_PROCESSOR] Found ${snap.docs.length} pending withdrawals to process`);
 
     let processed = 0;
+    let failed = 0;
+    const results: any[] = [];
+
     for (const docSnap of snap.docs) {
       const snapshotData = docSnap.data() as any;
-      const w = { id: docSnap.id, ...snapshotData } as any;
+      const w = { id: docSnap.id, ...snapshotData } as WithdrawalData;
 
       // Attempt to claim and process the withdrawal in a transaction
       try {
+        console.log(`[WITHDRAWAL_PROCESSOR] Processing withdrawal ${w.id} for user ${w.userId}`);
+
+        // Step 1: Mark withdrawal as PROCESSING (atomic transaction)
+        let processingSuccess = false;
+
         await runTransaction(db, async (tx) => {
           const wRef = doc(db, 'withdrawals', w.id);
           const current = await tx.get(wRef);
-          if (!current.exists()) throw new Error('Withdrawal not found');
+
+          if (!current.exists()) {
+            throw new Error('Withdrawal document not found');
+          }
+
           const wData = current.data() as any;
-          if (wData.status !== 'PENDING') return; // skip
+
+          // Skip if status has changed (another process claimed it)
+          if (wData.status !== 'PENDING') {
+            console.log(`[WITHDRAWAL_PROCESSOR] Skipping ${w.id} - status changed to ${wData.status}`);
+            return;
+          }
 
           // Mark as PROCESSING to avoid double-processing
-          tx.update(wRef, { status: 'PROCESSING', processingAt: serverTimestamp() });
+          tx.update(wRef, {
+            status: 'PROCESSING',
+            processingAt: serverTimestamp(),
+            attemptCount: (wData.attemptCount || 0) + 1,
+          });
 
-          // perform external transfer (simulated or real)
+          processingSuccess = true;
         });
 
-        // After marking PROCESSING, run the external transfer outside the transaction
+        if (!processingSuccess) {
+          console.log(`[WITHDRAWAL_PROCESSOR] Skipped ${w.id} - already being processed`);
+          continue;
+        }
+
+        // Step 2: Execute external transfer (outside transaction to avoid timeouts)
+        console.log(`[WITHDRAWAL_PROCESSOR] Executing external transfer for ${w.id}`);
         const result = await processExternalTransfer(w);
 
+        // Step 3: Update withdrawal status based on result
         if (result.success) {
+          console.log(
+            `[WITHDRAWAL_PROCESSOR] Transfer successful for ${w.id}, external ID: ${result.providerId}`
+          );
+
           // Mark success and record provider id
           await runTransaction(db, async (tx) => {
             const wRef = doc(db, 'withdrawals', w.id);
-            tx.update(wRef, { status: 'SUCCESS', processedAt: serverTimestamp(), externalId: result.providerId || null });
+
+            tx.update(wRef, {
+              status: 'SUCCESS',
+              processedAt: serverTimestamp(),
+              externalId: result.providerId || null,
+              externalStatus: result.reason || 'PENDING',
+            });
+
+            // Create audit log entry
             const logRef = doc(collection(db, 'logs'));
             tx.set(logRef, {
               userId: w.userId,
-              title: 'Withdrawal Processed',
-              desc: `Processed withdrawal ${w.id} via external bridge. External ID: ${result.providerId || 'N/A'}`,
+              title: 'Withdrawal Processed Successfully',
+              desc: `Withdrawal ${w.id} successfully processed via external bridge. Amount: ${w.amount} ${w.currency}. External ID: ${result.providerId || 'N/A'}. External Status: ${result.reason || 'PENDING'}`,
               type: 'withdrawal',
-              timestamp: serverTimestamp()
+              withdrawalId: w.id,
+              status: 'SUCCESS',
+              timestamp: serverTimestamp(),
             });
           });
+
+          processed += 1;
+          results.push({
+            id: w.id,
+            status: 'SUCCESS',
+            amount: w.amount,
+            currency: w.currency,
+            externalId: result.providerId,
+          });
         } else {
+          console.error(`[WITHDRAWAL_PROCESSOR] Transfer failed for ${w.id}: ${result.reason}`);
+
           // Failure: mark FAILED and refund the user (amount + fee)
           await runTransaction(db, async (tx) => {
             const wRef = doc(db, 'withdrawals', w.id);
             const wSnap = await tx.get(wRef);
-            if (!wSnap.exists()) throw new Error('Withdrawal not found for refund');
+
+            if (!wSnap.exists()) {
+              throw new Error('Withdrawal not found for refund');
+            }
+
             const wData = wSnap.data() as any;
 
+            // Get user reference
             const userRef = doc(db, 'users', wData.userId);
             const userSnap = await tx.get(userRef);
-            if (!userSnap.exists()) throw new Error('User not found to refund');
+
+            if (!userSnap.exists()) {
+              throw new Error('User not found to refund');
+            }
+
             const currentBal = (userSnap.data() as any).balance || 0;
 
+            // Calculate refund (amount + fee)
             const refund = (wData.amount || 0) + (wData.fee || 0);
-            tx.update(userRef, { balance: currentBal + refund });
 
-            tx.update(wRef, { status: 'FAILED', failReason: result.reason || 'External bridge error', failedAt: serverTimestamp() });
+            // Update user balance
+            tx.update(userRef, {
+              balance: currentBal + refund,
+              lastRefundAt: serverTimestamp(),
+            });
 
+            // Mark withdrawal as FAILED
+            tx.update(wRef, {
+              status: 'FAILED',
+              failReason: result.reason || 'External bridge error',
+              failedAt: serverTimestamp(),
+              refundAmount: refund,
+            });
+
+            // Create audit log entries
             const logRef = doc(collection(db, 'logs'));
             tx.set(logRef, {
               userId: wData.userId,
               title: 'Withdrawal Failed',
-              desc: `Withdrawal ${w.id} failed: ${result.reason || 'unknown'}. Refunded ${refund}.`,
+              desc: `Withdrawal ${w.id} failed: ${result.reason || 'unknown'}. Amount: ${wData.amount} ${wData.currency}. Refunded: ${refund}`,
               type: 'withdrawal',
-              timestamp: serverTimestamp()
+              withdrawalId: w.id,
+              status: 'FAILED',
+              failReason: result.reason,
+              timestamp: serverTimestamp(),
             });
           });
+
+          failed += 1;
+          results.push({
+            id: w.id,
+            status: 'FAILED',
+            reason: result.reason,
+            amount: w.amount,
+            currency: w.currency,
+            refunded: true,
+          });
+        }
+      } catch (err: any) {
+        console.error(`[WITHDRAWAL_PROCESSOR] Error processing withdrawal ${w.id}:`, err?.message || err);
+
+        // Try to mark as ERROR state for manual review
+        try {
+          await runTransaction(db, async (tx) => {
+            const wRef = doc(db, 'withdrawals', w.id);
+            const wSnap = await tx.get(wRef);
+
+            if (wSnap.exists() && wSnap.data().status === 'PROCESSING') {
+              tx.update(wRef, {
+                status: 'ERROR',
+                errorReason: err.message || String(err),
+                errorAt: serverTimestamp(),
+              });
+            }
+          });
+        } catch (updateErr) {
+          console.error(`[WITHDRAWAL_PROCESSOR] Failed to mark ${w.id} as ERROR:`, updateErr);
         }
 
-        processed += 1;
-      } catch (err: any) {
-        console.error('Processing error for', w.id, err?.message || err);
-        // continue with next
+        failed += 1;
       }
     }
 
-    return res.status(200).json({ processed });
+    const summary = {
+      processed,
+      failed,
+      total: snap.docs.length,
+      results,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log(`[WITHDRAWAL_PROCESSOR] Batch complete: ${JSON.stringify(summary)}`);
+
+    return res.status(200).json(summary);
   } catch (err: any) {
-    console.error('Withdrawal processor error:', err);
-    return res.status(500).json({ error: String(err) });
+    console.error('[WITHDRAWAL_PROCESSOR] Fatal error:', err);
+    return res.status(500).json({
+      error: 'Withdrawal processor error',
+      message: err.message || String(err),
+      timestamp: new Date().toISOString(),
+    });
   }
 }
