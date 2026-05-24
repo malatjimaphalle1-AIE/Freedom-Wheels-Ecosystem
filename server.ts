@@ -448,6 +448,7 @@ app.post("/api/wise/withdraw", async (req, res) => {
     res.json({
       id: transfer.id,
       status: transfer.status || "PENDING",
+      statusReason: transfer.statusReason || null,
       recipient,
       quote,
       transfer,
@@ -460,6 +461,31 @@ app.post("/api/wise/withdraw", async (req, res) => {
       return res.status(err.status || 500).json({ error: err.message || "Wise withdrawal failed." });
     }
     res.status(500).json({ error: "Wise withdrawal cannot be completed without a configured API key." });
+  }
+});
+
+app.get("/api/wise/withdraw/:id/status", async (req, res) => {
+  try {
+    const transferId = req.params.id;
+    if (!transferId) {
+      return res.status(400).json({ error: "Transfer id is required." });
+    }
+
+    const transfer = await getWiseData(`/v1/transfers/${transferId}`, req);
+
+    return res.json({
+      id: transfer?.id || transferId,
+      status: transfer?.status || "UNKNOWN",
+      statusReason: transfer?.statusReason || null,
+      created: transfer?.created || null,
+      estimatedDelivery: transfer?.targetValue?.deliveryEstimate || null,
+      raw: transfer
+    });
+  } catch (err: any) {
+    console.error("Wise withdraw status failure:", err.message || err);
+    return res.status(err.status || 500).json({
+      error: err.message || "Failed to fetch withdrawal status."
+    });
   }
 });
 
