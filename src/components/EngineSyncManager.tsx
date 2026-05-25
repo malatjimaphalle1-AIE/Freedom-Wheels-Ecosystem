@@ -29,7 +29,8 @@ export function EngineSyncManager() {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [user, engines.length, updateEngineRevenue]);
+  }, [user, engines, updateEngineRevenue]);
 
   return null; // Side-effect only component
 }
+

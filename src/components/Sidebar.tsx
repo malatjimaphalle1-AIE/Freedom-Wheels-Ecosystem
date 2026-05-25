@@ -26,6 +26,7 @@ const navigation = [
   { name: "Marketplace", href: "/marketplace", icon: ShoppingBag },
   { name: "Wallet & Revenue", href: "/wallet", icon: Wallet },
   { name: "Profile", href: "/profile", icon: User },
+  { name: "Settings", href: "/settings", icon: SettingsIcon },
   { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
   { name: "Knowledge Base", href: "/knowledge", icon: Book },
 ];
@@ -98,3 +99,5 @@ export default function Sidebar() {
     </aside>
   );
 }
+
+

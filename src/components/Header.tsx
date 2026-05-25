@@ -15,7 +15,7 @@ export default function Header({ onSearchClick }: { onSearchClick?: () => void }
             <Cpu className="w-5 h-5 text-accent-blue group-hover:drop-shadow-[0_0_8px_#00f2ff]" />
           </div>
           <div className="flex flex-col">
-            <span className="text-xs font-black tracking-tighter uppercase leading-none text-accent-blue">Freedom Wheels™</span>
+            <span className="text-xs font-black tracking-tighter uppercase leading-none text-accent-blue">Freedom Wheels</span>
             <span className="text-[9px] font-bold text-accent-gold uppercase tracking-[0.2em] leading-none mt-1">Ecosystem</span>
           </div>
         </Link>
@@ -29,7 +29,7 @@ export default function Header({ onSearchClick }: { onSearchClick?: () => void }
             <span className="text-[11px] font-mono text-text-dim/50">Search autonomous infrastructure...</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border-dim text-[8px] font-mono text-text-dim group-hover:text-accent-blue transition-colors">⌘</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border-dim text-[8px] font-mono text-text-dim group-hover:text-accent-blue transition-colors">Ctrl</kbd>
             <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border-dim text-[8px] font-mono text-text-dim group-hover:text-accent-blue transition-colors">K</kbd>
           </div>
         </div>
@@ -68,3 +68,4 @@ export default function Header({ onSearchClick }: { onSearchClick?: () => void }
     </header>
   );
 }
+

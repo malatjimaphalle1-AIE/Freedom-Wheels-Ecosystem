@@ -26,6 +26,27 @@ interface EdgeData {
   target: string;
 }
 
+interface EngineConfig {
+  parameters: {
+    performanceThreshold: number;
+    autoOptimize: boolean;
+    riskLevel: 'conservative' | 'moderate' | 'aggressive';
+    maxAllocation: number;
+    enableInteractions: boolean;
+  };
+  connections: {
+    linkedEngines: string[];
+    dataFlow: 'pull' | 'push' | 'bidirectional';
+    syncInterval: number;
+  };
+  alerts: {
+    enableLowIntegrity: boolean;
+    enableHighPerformance: boolean;
+    integrityThreshold: number;
+    performanceThreshold: number;
+  };
+}
+
 interface Engine {
   id: string;
   name: string;
@@ -36,10 +57,13 @@ interface Engine {
   optimizationMultiplier?: number;
   optimizationLevel?: number;
   performance?: string | number;
+  neuralIntegrity?: number;
+  yieldVelocity?: number;
   lastOptimizedAt?: any;
   userId: string;
   createdAt?: any;
   updatedAt?: any;
+  config?: EngineConfig;
 }
 
 interface EngineState {
@@ -53,6 +77,11 @@ interface EngineState {
   // Actions
   optimizeEngine: (userId: string, engineId: string) => Promise<void>;
   updateEngineRevenue: (userId: string, engineId: string, amount: number) => Promise<void>;
+  updateEngineConfig: (engineId: string, config: EngineConfig) => Promise<void>;
+  getEngineConfig: (engineId: string) => EngineConfig | undefined;
+  linkEngines: (sourceId: string, targetId: string, dataFlow: 'pull' | 'push' | 'bidirectional', syncInterval: number) => Promise<void>;
+  unlinkEngines: (sourceId: string, targetId: string) => Promise<void>;
+  syncEngineData: (sourceId: string, targetId: string, amount: number) => Promise<void>;
   
   // Builder State (Decoupled from DB until save)
   builder: {
@@ -155,13 +184,140 @@ export const useEngineStore = create<EngineState>((set, get) => ({
     }
   },
 
+  updateEngineConfig: async (engineId: string, config: EngineConfig) => {
+    try {
+      await updateDoc(doc(db, 'engines', engineId), {
+        config,
+        updatedAt: serverTimestamp()
+      });
+
+      set(state => ({
+        engines: state.engines.map(e =>
+          e.id === engineId ? { ...e, config } : e
+        )
+      }));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `engines/${engineId}/config`);
+    }
+  },
+
+  getEngineConfig: (engineId: string) => {
+    const engine = get().engines.find(e => e.id === engineId);
+    return engine?.config;
+  },
+
+  linkEngines: async (sourceId: string, targetId: string, dataFlow: 'pull' | 'push' | 'bidirectional', syncInterval: number) => {
+    const { engines } = get();
+    const sourceEngine = engines.find(e => e.id === sourceId);
+    if (!sourceEngine) return;
+
+    const currentConfig = sourceEngine.config ?? {
+      parameters: {
+        performanceThreshold: 70,
+        autoOptimize: true,
+        riskLevel: 'moderate',
+        maxAllocation: 100,
+        enableInteractions: true
+      },
+      connections: {
+        linkedEngines: [],
+        dataFlow,
+        syncInterval
+      },
+      alerts: {
+        enableLowIntegrity: true,
+        enableHighPerformance: true,
+        integrityThreshold: 20,
+        performanceThreshold: 90
+      }
+    };
+
+    const updatedConfig = {
+      ...currentConfig,
+      connections: {
+        ...currentConfig.connections,
+        linkedEngines: Array.from(new Set([...currentConfig.connections.linkedEngines, targetId])),
+        dataFlow,
+        syncInterval
+      }
+    };
+
+    try {
+      await updateDoc(doc(db, 'engines', sourceId), {
+        config: updatedConfig,
+        updatedAt: serverTimestamp()
+      });
+      set(state => ({
+        engines: state.engines.map(e =>
+          e.id === sourceId ? { ...e, config: updatedConfig } : e
+        )
+      }));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `engines/${sourceId}/links`);
+    }
+  },
+
+  unlinkEngines: async (sourceId: string, targetId: string) => {
+    const { engines } = get();
+    const sourceEngine = engines.find(e => e.id === sourceId);
+    if (!sourceEngine || !sourceEngine.config) return;
+
+    const updatedConfig = {
+      ...sourceEngine.config,
+      connections: {
+        ...sourceEngine.config.connections,
+        linkedEngines: sourceEngine.config.connections.linkedEngines.filter(id => id !== targetId)
+      }
+    };
+
+    try {
+      await updateDoc(doc(db, 'engines', sourceId), {
+        config: updatedConfig,
+        updatedAt: serverTimestamp()
+      });
+      set(state => ({
+        engines: state.engines.map(e =>
+          e.id === sourceId ? { ...e, config: updatedConfig } : e
+        )
+      }));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `engines/${sourceId}/unlink`);
+    }
+  },
+
+  syncEngineData: async (sourceId: string, targetId: string, amount: number) => {
+    const { engines } = get();
+    const sourceEngine = engines.find(e => e.id === sourceId);
+    const targetEngine = engines.find(e => e.id === targetId);
+    if (!sourceEngine || !targetEngine) return;
+
+    const targetRevenue = parseFloat((targetEngine.revenue || '$0.00').replace(/[^0-9.]/g, '')) || 0;
+    const newTargetRevenue = targetRevenue + amount;
+
+    try {
+      await updateDoc(doc(db, 'engines', targetId), {
+        revenue: `$${newTargetRevenue.toFixed(2)}`,
+        yieldVelocity: parseFloat((amount / 30).toFixed(6)),
+        updatedAt: serverTimestamp()
+      });
+      set(state => ({
+        engines: state.engines.map(e =>
+          e.id === targetId ? { ...e, revenue: `$${newTargetRevenue.toFixed(2)}`, yieldVelocity: parseFloat((amount / 30).toFixed(6)) } : e
+        ),
+        totalYield: state.totalYield + amount
+      }));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `engines/sync/${sourceId}/${targetId}`);
+    }
+  },
+
   builder: {
-    nodes: [],
-    edges: [],
+    nodes: [] as NodeData[],
+    edges: [] as EdgeData[],
     name: "NEW_SOVEREIGN_ENGINE",
-    setNodes: (nodes) => set((state) => ({ builder: { ...state.builder, nodes } })),
-    setEdges: (edges) => set((state) => ({ builder: { ...state.builder, edges } })),
-    setName: (name) => set((state) => ({ builder: { ...state.builder, name } })),
+    setNodes: (nodes: NodeData[]) => set((state) => ({ builder: { ...state.builder, nodes } })),
+    setEdges: (edges: EdgeData[]) => set((state) => ({ builder: { ...state.builder, edges } })),
+    setName: (name: string) => set((state) => ({ builder: { ...state.builder, name } })),
     reset: () => set((state) => ({ 
       builder: { 
         ...state.builder, 

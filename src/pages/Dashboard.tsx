@@ -13,6 +13,8 @@ import { collection, query, where, onSnapshot, deleteDoc, doc, updateDoc, addDoc
 import { cn } from "../lib/utils";
 import { useAuth } from "../contexts/AuthContext";
 import { useEngineStore } from "../store/useEngineStore";
+import { EngineConfigPanel } from "../components/EngineConfigPanel";
+import { EngineInteractionBridge } from "../components/EngineInteractionBridge";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 
 const revenueData = [
@@ -47,7 +49,10 @@ import { fetchWithRetry } from "../lib/fetchUtils";
 
 export default function Dashboard() {
   const { user, profile, signIn, logOut } = useAuth();
-  const { engines, totalYield: totalEngineRevenue, optimizeEngine } = useEngineStore();
+  const { engines, totalYield: totalEngineRevenue, optimizeEngine, updateEngineConfig } = useEngineStore();
+  const [selectedEngineForConfig, setSelectedEngineForConfig] = useState<any>(null);
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const [enableEngineInteractions, setEnableEngineInteractions] = useState(true);
   const [revenue, setRevenue] = useState<{ total: number, currency: string, breakdown: { wise: number, crypto: number, engines: number, settled: number } } | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [neuralLogs, setNeuralLogs] = useState<any[]>([]);
@@ -58,6 +63,8 @@ export default function Dashboard() {
     if (statusFilter === "ALL") return engines;
     return engines.filter(e => e.status === statusFilter);
   }, [engines, statusFilter]);
+
+  const engineInteractionsEnabled = enableEngineInteractions && engines.some(e => e.config?.parameters?.enableInteractions);
 
   useEffect(() => {
     if (!user) {
@@ -219,6 +226,15 @@ export default function Dashboard() {
     }
   };
 
+  const handleEngineConfigSave = async (config: any) => {
+    if (!selectedEngineForConfig) return;
+    try {
+      await updateEngineConfig(selectedEngineForConfig.id, config);
+    } catch (err) {
+      console.error('Engine config save failed', err);
+    }
+  };
+
   useEffect(() => {
     // Check cache first
     const cached = localStorage.getItem('dashboard_strategic_insights');
@@ -251,11 +267,11 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="h-full geometric-grid grid-cols-[280px_1fr_280px] overflow-hidden bg-bg relative pixel-grid">
+    <div className="min-h-full grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)_280px] overflow-y-auto xl:overflow-hidden bg-bg relative pixel-grid">
       {/* Background Ambience */}
       <div className="absolute inset-0 bg-gradient-to-tr from-accent-blue/5 via-transparent to-transparent pointer-events-none" />
       {/* Left Panel: Engines */}
-      <aside className="geometric-panel border-r border-border-dim overflow-y-auto custom-scrollbar p-6">
+      <aside className="geometric-panel border-b xl:border-b-0 xl:border-r border-border-dim overflow-y-auto custom-scrollbar p-6 xl:max-h-full">
         <div className="flex items-center justify-between mb-4 border-b border-border-dim pb-2">
           <div className="text-[10px] font-black uppercase tracking-widest text-text-dim">Sovereign Engines</div>
           <div className="flex items-center gap-2">
@@ -284,8 +300,12 @@ export default function Dashboard() {
                 revenue={engine.revenue}
                 performance={engine.performance}
                 optimizationMultiplier={engine.optimizationMultiplier}
-                onOptimize={optimizeEngine}
-                onToggleStatus={async (id, currentStatus) => {
+                onOptimize={(id: string) => user && optimizeEngine(user.uid, id)}
+                onConfigure={(id: string) => {
+                  const selected = engines.find(e => e.id === id);
+                  setSelectedEngineForConfig(selected);
+                  setShowConfigPanel(true);
+                }}                onToggleStatus={async (id, currentStatus) => {
                   const nextStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
                   await updateDoc(doc(db, "engines", id), { status: nextStatus, updatedAt: serverTimestamp() });
                 }}
@@ -311,7 +331,7 @@ export default function Dashboard() {
       </aside>
 
       {/* Center: Command Center */}
-      <section className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-bg relative">
+      <section className="min-w-0 overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8 bg-bg relative">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
           <StatCard icon={<TrendingUp />} label="Total Sync" value={`$${(revenue?.total || 0).toLocaleString()}`} trend="ACTIVE" />
           <StatCard icon={<Cpu />} label="Active Yield" value={`$${(totalEngineRevenue || 0).toLocaleString()}`} trend="LIVE" />
@@ -324,6 +344,21 @@ export default function Dashboard() {
           />
           <StatCard icon={<Shield />} label="Secured" value={`$${(revenue?.breakdown?.crypto || 0).toLocaleString()}`} trend="VAULT" />
         </div>
+
+        <div className="p-6 rounded-xl bg-surface border border-border-dim mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-text-dim">Cross-Engine Interaction</p>
+            <p className="text-[11px] text-text-main">Synchronize active engine pipelines and share performance data across enabled cores.</p>
+          </div>
+          <button
+            onClick={() => setEnableEngineInteractions(prev => !prev)}
+            className="px-4 py-2 rounded-lg border border-border-dim bg-bg text-[10px] font-black uppercase tracking-widest hover:border-accent-blue transition-all"
+          >
+            {enableEngineInteractions ? 'Disable Sync' : 'Enable Sync'}
+          </button>
+        </div>
+
+        <EngineInteractionBridge engines={engines} isEnabled={engineInteractionsEnabled} />
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
            <div className="p-6 rounded-xl bg-surface border border-border-dim">
@@ -481,7 +516,7 @@ export default function Dashboard() {
         <div className="flex flex-col items-center justify-center py-12 border-t border-border-dim/30">
           <div className="w-64 h-64 rounded-full border border-accent-blue/10 flex items-center justify-center relative shadow-[0_0_50px_rgba(0,242,255,0.05)]">
              <div className="text-center">
-                <div className="text-[10px] font-black uppercase tracking-widest text-accent-gold mb-1">AutoIncome Engines™</div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-accent-gold mb-1">AutoIncome Engines</div>
                 <div className="text-2xl font-black uppercase tracking-tighter">SOVEREIGN CORE</div>
                 <Link to="/builder" className="mt-4 inline-block px-6 py-2 bg-accent-gold text-bg text-[10px] font-black uppercase tracking-widest rounded transition-all">Engage Funnel Builder</Link>
              </div>
@@ -493,7 +528,7 @@ export default function Dashboard() {
       </section>
 
       {/* Right: Neural Logs */}
-      <aside className="geometric-panel border-l border-border-dim overflow-y-auto custom-scrollbar p-6">
+      <aside className="geometric-panel border-t 2xl:border-t-0 2xl:border-l border-border-dim overflow-y-auto custom-scrollbar p-6 xl:col-span-2 2xl:col-span-1 2xl:max-h-full">
         <div className="panel-header text-[10px] font-black uppercase tracking-widest text-text-dim border-b border-border-dim pb-2 mb-4 flex items-center justify-between">
           <span>Neural_Logs</span>
           <div className="flex items-center gap-1">
@@ -546,11 +581,18 @@ export default function Dashboard() {
            <Link to="/wallet" className="mt-3 block text-center py-2 bg-accent-blue text-bg text-[9px] font-black uppercase tracking-widest rounded transition-all hover:brightness-110 active:scale-95">Withdraw_Protocol</Link>
         </div>
       </aside>
+
+      <EngineConfigPanel
+        engine={selectedEngineForConfig}
+        isOpen={showConfigPanel}
+        onClose={() => setShowConfigPanel(false)}
+        onSave={handleEngineConfigSave}
+      />
     </div>
   );
 }
 
-function EngineItem({ id, name, status, revenue, performance, optimizationMultiplier, onDelete, onToggleStatus, onOptimize }: any) {
+function EngineItem({ id, name, status, revenue, performance, optimizationMultiplier, onDelete, onToggleStatus, onOptimize, onConfigure }: any) {
   const safeRevenue = revenue || "$0.00";
   const [liveRevenue, setLiveRevenue] = useState(parseFloat(safeRevenue.replace(/[^0-9.]/g, '')) || 0);
 
@@ -599,6 +641,7 @@ function EngineItem({ id, name, status, revenue, performance, optimizationMultip
         </div>
       </div>
       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+        <button onClick={() => onConfigure(id)} className="p-1 border border-border-dim rounded hover:border-accent-blue transition-colors"><Settings className="w-3 h-3" /></button>
         <button onClick={() => onOptimize(id)} className="p-1 border border-border-dim rounded hover:border-accent-gold transition-colors"><TrendingUp className="w-3 h-3" /></button>
         <button onClick={() => onToggleStatus(id, status)} className="p-1 border border-border-dim rounded hover:border-emerald-500 transition-colors">{status === 'ACTIVE' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}</button>
         <button onClick={() => onDelete(id)} className="p-1 border border-border-dim rounded hover:border-red-500 transition-colors"><Trash2 className="w-3 h-3" /></button>
@@ -652,3 +695,4 @@ function NeuralMap() {
     </svg>
   );
 }
+

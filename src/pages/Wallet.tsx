@@ -540,7 +540,7 @@ export default function WalletPage() {
 
     sorted.forEach(tx => {
       if (!tx.amount) return;
-      const amountMatch = tx.amount.match(/([+-])\$([\d,.]+)/);
+      const amountMatch = tx.amount.match(/([+-])\$?([\d,.]+)/);
       if (amountMatch) {
         const sign = amountMatch[1];
         const val = parseFloat(amountMatch[2].replace(/,/g, ''));
@@ -1128,8 +1128,8 @@ const AssetSmall: React.FC<AssetSmallProps> = ({ label, value, currency, icon })
   const getSymbol = (curr?: string) => {
     switch (curr) {
       case "USD": return "$";
-      case "EUR": return "€";
-      case "GBP": return "£";
+      case "EUR": return "EUR ";
+      case "GBP": return "GBP ";
       case "ZAR": return "R";
       default: return "";
     }
@@ -1210,7 +1210,7 @@ function TxRow({ id, title, desc, date, amount, secondaryAmount, status, type, d
                 <span>{date}</span>
                 {secondaryAmount && (
                   <>
-                    <span className="text-[8px] opacity-30">•</span>
+                    <span className="text-[8px] opacity-30">-</span>
                     <span className="text-accent-gold/70 italic">Conv: {secondaryAmount}</span>
                   </>
                 )}
@@ -1331,3 +1331,4 @@ function PaymentItem({ label, id, type, active, onEdit, onDelete }: any) {
     </div>
   );
 }
+

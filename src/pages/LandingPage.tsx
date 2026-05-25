@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { ArrowRight, Shield, Zap, Globe, Cpu, BarChart3, Wallet, Network } from "lucide-react";
+import { ArrowRight, Shield, Zap, Globe, Cpu, BarChart3, Wallet, Network, CheckCircle2 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { cn } from "../lib/utils";
 import { useEffect } from "react";
@@ -26,7 +26,7 @@ export default function LandingPage() {
               <Network className="text-accent-blue w-5 h-5" />
             </div>
             <span className="text-lg font-black tracking-tighter uppercase text-accent-gold">
-              Freedom Wheels™ <span className="text-text-main">Ecosystem</span>
+              Freedom Wheels <span className="text-text-main">Ecosystem</span>
             </span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-[11px] font-mono uppercase tracking-widest text-text-dim">
@@ -43,8 +43,8 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative pt-40 pb-20 px-6">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[20%] left-[50%] -translate-x-1/2 w-[800px] h-[800px] bg-accent-blue/5 rounded-full blur-[120px]" />
-          <div className="absolute top-[40%] left-[30%] w-[400px] h-[400px] bg-accent-gold/5 rounded-full blur-[100px]" />
+          <div className="absolute inset-x-0 top-0 h-[520px] bg-[linear-gradient(135deg,rgba(0,242,255,0.12),transparent_34%),linear-gradient(45deg,rgba(245,158,11,0.1),transparent_42%)]" />
+          <div className="absolute inset-0 pixel-grid opacity-30" />
         </div>
 
         <div className="max-w-7xl mx-auto text-center relative z-10">
@@ -57,7 +57,7 @@ export default function LandingPage() {
               <div className="inline-block w-1.5 h-1.5 rounded-full bg-accent-blue mr-2 animate-pulse" />
               Sovereign Core System Active
             </span>
-            <h1 className="text-6xl md:text-8xl font-black tracking-tighter mb-10 leading-[0.85] uppercase">
+            <h1 className="text-5xl sm:text-6xl md:text-8xl font-black tracking-tighter mb-10 leading-[0.88] uppercase">
               BUILD INCOME THAT <br />
               <span className="text-accent-blue glow-blue">WORKS WITHOUT YOU</span>
             </h1>
@@ -85,15 +85,45 @@ export default function LandingPage() {
             transition={{ delay: 0.3, duration: 0.8 }}
             className="mt-24 relative max-w-5xl mx-auto"
           >
-            <div className="aspect-video bg-surface rounded-2xl overflow-hidden border border-border-dim shadow-2xl relative group">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#0c1d2e_0%,#05070a_70%)] flex items-center justify-center p-12">
-                 <div className="w-48 h-48 rounded-full border border-accent-blue/10 flex items-center justify-center relative shadow-[0_0_60px_rgba(0,242,255,0.05)]">
-                   <div className="w-32 h-32 rounded-full border-2 border-accent-gold flex flex-col items-center justify-center text-center p-4">
-                      <Cpu className="text-accent-blue w-8 h-8 glow-blue mb-2" />
-                      <div className="text-[10px] font-mono font-bold text-accent-blue">CORE_SYNC</div>
+            <div className="aspect-[16/10] md:aspect-video bg-surface rounded-lg overflow-hidden border border-border-dim shadow-2xl relative group">
+              <div className="absolute inset-0 bg-[linear-gradient(135deg,#0f172a_0%,#05070a_48%,#111827_100%)] p-4 sm:p-6 md:p-10">
+                 <div className="grid h-full grid-cols-1 md:grid-cols-[1.1fr_0.9fr] gap-4">
+                   <div className="rounded-lg border border-accent-blue/25 bg-bg/80 p-4 sm:p-6 flex flex-col justify-between">
+                     <div className="flex items-center justify-between">
+                       <div className="text-[10px] font-black uppercase tracking-widest text-accent-blue">Revenue Command Grid</div>
+                       <div className="flex items-center gap-2 text-[9px] font-mono text-emerald-400">
+                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                         LIVE DATA
+                       </div>
+                     </div>
+                     <div>
+                       <div className="text-4xl sm:text-5xl font-black font-mono text-accent-blue">$42,891</div>
+                       <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-text-dim">Automated pipeline value</div>
+                     </div>
+                     <div className="grid grid-cols-3 gap-2">
+                       {["Leads", "Engines", "Payouts"].map((label, i) => (
+                         <div key={label} className="rounded border border-border-dim bg-surface p-3">
+                           <div className="text-[8px] uppercase tracking-widest text-text-dim">{label}</div>
+                           <div className="mt-1 text-sm font-black text-text-main">{[1240, 8, 27][i]}</div>
+                         </div>
+                       ))}
+                     </div>
                    </div>
-                   <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-accent-blue shadow-[0_0_8px_#00f2ff]" />
-                   <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-accent-blue" />
+                   <div className="hidden md:grid gap-3">
+                     {[
+                       ["Traffic Engine", "ACTIVE"],
+                       ["Lead Intelligence", "SYNCED"],
+                       ["Wallet Relay", "READY"],
+                     ].map(([label, status]) => (
+                       <div key={label} className="flex items-center justify-between rounded-lg border border-border-dim bg-bg/70 p-4">
+                         <div className="flex items-center gap-3">
+                           <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                           <span className="text-[11px] font-black uppercase tracking-widest">{label}</span>
+                         </div>
+                         <span className="text-[9px] font-mono text-accent-gold">{status}</span>
+                       </div>
+                     ))}
+                   </div>
                  </div>
               </div>
               <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-[10px] font-mono text-text-dim uppercase tracking-wider">
@@ -142,9 +172,9 @@ export default function LandingPage() {
       <section id="how-it-works" className="py-32 px-6">
         <div className="max-w-7xl mx-auto text-center mb-20">
           <div className="text-[10px] font-mono uppercase tracking-widest text-accent-gold mb-4">Operational Protocol</div>
-          <h2 className="text-5xl md:text-7xl font-black mb-6 uppercase tracking-tighter">Inputs → Automation → <span className="text-accent-gold glow-gold">Income</span></h2>
+          <h2 className="text-5xl md:text-7xl font-black mb-6 uppercase tracking-tighter">Inputs &gt; Automation &gt; <span className="text-accent-gold glow-gold">Income</span></h2>
           <p className="text-text-dim max-w-2xl mx-auto text-lg">
-            The Freedom Wheels™ ecosystem simplifies revenue generation into a three-step autonomous loop.
+            The Freedom Wheels ecosystem simplifies revenue generation into a three-step autonomous loop.
           </p>
         </div>
 
@@ -203,16 +233,17 @@ export default function LandingPage() {
       <footer className="h-[60px] bg-bg border-t border-border-dim flex items-center px-10 gap-10 font-mono text-[10px] text-text-dim uppercase tracking-widest">
         <div className="flex items-center gap-3">
           <Network className="w-4 h-4 text-accent-blue" />
-          <span className="font-bold">Freedom Wheels™ Ecosystem</span>
+          <span className="font-bold">Freedom Wheels Ecosystem</span>
         </div>
         <div className="hidden md:flex gap-8 ml-auto">
           <a href="#" className="hover:text-accent-blue transition-colors">Legal</a>
           <a href="#" className="hover:text-accent-blue transition-colors">Protocol</a>
           <a href="#" className="hover:text-accent-blue transition-colors">Access</a>
         </div>
-        <div className="ml-auto sm:ml-8">© 2026 Sovereign_Core_Nexus</div>
+        <div className="ml-auto sm:ml-8">(c) 2026 Sovereign_Core_Nexus</div>
       </footer>
     </div>
 
   );
 }
+

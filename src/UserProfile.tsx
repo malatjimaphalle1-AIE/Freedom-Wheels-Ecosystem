@@ -20,12 +20,11 @@ import {
   Lock
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "./utils";
-import { useAuth } from "./AuthContext";
+import { cn } from "./lib/utils";
+import { useAuth } from "./contexts/AuthContext";
 import { SovereignMedia } from "./SovereignMedia";
-import { getModelName } from "./geminiService";
-import { db, handleFirestoreError, OperationType, createLog } from "./firebase";
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType } from "./lib/firebase";
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, addDoc, collection } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 
 const GEMINI_KEY_PATTERN = /^AIza[0-9A-Za-z-_]{35}$/;
@@ -135,7 +134,13 @@ export default function UserProfile() {
       setIsEditingProfile(false);
       
       // Also log the update
-      await createLog(user.uid, "Architect Sync", "Matrix identity and persona protocols updated.", "system");
+      await addDoc(collection(db, "logs"), {
+        userId: user.uid,
+        title: "Architect Sync",
+        desc: "Matrix identity and persona protocols updated.",
+        type: "system",
+        timestamp: serverTimestamp()
+      });
 
       setTimeout(() => setProfileStatus("idle"), 3000);
     } catch (err) {
@@ -191,10 +196,10 @@ export default function UserProfile() {
     localStorage.setItem("SOVEREIGN_GEMINI_KEY", config.geminiKey);
 
     try {
-      const { getGeminiModel } = await import("./gemini");
+      const { getGeminiModel } = await import("./services/gemini");
       const model = getGeminiModel();
       await model.models.generateContent({
-        model: getModelName(),
+        model: "gemini-3-flash-preview",
         contents: "ping"
       });
       
@@ -678,5 +683,6 @@ export default function UserProfile() {
         </AnimatePresence>
       </div>
     </div>
+  </div>
   );
 }

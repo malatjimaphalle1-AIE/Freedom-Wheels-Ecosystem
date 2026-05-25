@@ -13,6 +13,7 @@ interface AuthContextType {
   user: User | null;
   profile: any | null;
   loading: boolean;
+  isAdmin: boolean;
   signIn: () => Promise<void>;
   logOut: () => Promise<void>;
 }
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -57,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
             await setDoc(userDocRef, newProfile);
             setProfile(newProfile);
+            setIsAdmin(isAdmin);
             sessionStorage.removeItem('referredBy');
 
             // Handle Referrer Reward Sequence
@@ -127,8 +130,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } else if (user.email === 'malatjimaphalle1@gmail.com' && existingData.role !== 'ADMIN') {
               await setDoc(userDocRef, { role: 'ADMIN', updatedAt: new Date().toISOString() }, { merge: true });
               setProfile({ ...existingData, role: 'ADMIN' });
+              setIsAdmin(true);
             } else {
               setProfile(existingData);
+              setIsAdmin(existingData.role === 'ADMIN');
             }
           }
         } catch (error) {
@@ -171,7 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, logOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, isAdmin, signIn, logOut }}>
       {children}
     </AuthContext.Provider>
   );
