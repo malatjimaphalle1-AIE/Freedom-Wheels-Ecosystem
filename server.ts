@@ -96,7 +96,7 @@ const getWiseData = async (endpoint: string, req?: express.Request, silent = fal
       
       let clientMessage = `Wise API Error: ${response.status}`;
       if (response.status === 401) clientMessage = "Wise Authentication Failed: Please check your API Key in Settings.";
-      if (response.status === 403) clientMessage = "Wise Access Denied: Ensure your API Key has correct permissions and IP whitelising is disabled (or includes this server).";
+      if (response.status === 403) clientMessage = "Wise Access Denied: Ensure your API Key has correct permissions and IP whitelisting is disabled (or includes this server).";
       if (response.status === 404) clientMessage = "Wise Profile/Resource Not Found: Please verify your Profile ID.";
       
       const err = new Error(clientMessage);
@@ -128,8 +128,8 @@ const getWiseBaseUrl = (req?: express.Request) => {
   const envHeader = req?.headers["x-wise-env"] as string | undefined;
   const env = envHeader || process.env.WISE_ENV;
   return env === "sandbox"
-    ? "https://api.sandbox.transferwise.tech"
-    : "https://api.transferwise.com";
+    ? "https://api.sandbox.wise.com"
+    : "https://api.wise.com";
 };
 
 const wiseFetch = async (

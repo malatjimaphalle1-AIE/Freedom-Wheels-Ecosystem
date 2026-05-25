@@ -38,7 +38,7 @@ interface WiseRequestContext {
 }
 
 const getWiseBase = (wiseEnv?: string) =>
-  wiseEnv === "sandbox" ? "https://api.sandbox.transferwise.tech" : "https://api.transferwise.com";
+  wiseEnv === "sandbox" ? "https://api.sandbox.wise.com" : "https://api.wise.com";
 
 async function makeWiseRequest<T = any>(
   endpoint: string,
@@ -98,4 +98,3 @@ export async function getWiseTransferStatus(
 ) {
   return makeWiseRequest<WiseTransferStatus>(`/v1/transfers/${transferId}`, "GET", undefined, context);
 }
-
