@@ -642,7 +642,7 @@ export default function WalletPage() {
                   <div className="flex flex-wrap gap-4">
                       <button 
                         onClick={() => setIsWithdrawModalOpen(true)}
-                        className="px-8 py-3 bg-accent-blue text-bg text-[10px] font-black uppercase tracking-widest rounded hover:shadow-[0_0_20px_rgba(0,242,255,0.4)] transition-all flex items-center gap-2"
+                        className="px-8 py-3 bg-accent-blue text-bg text-[10px] font-black uppercase tracking-widest rounded transition-colors hover:bg-accent-blue/90 flex items-center gap-2"
                       >
                         <ArrowUpRight className="w-4 h-4" /> Export Assets
                       </button>
@@ -810,7 +810,7 @@ export default function WalletPage() {
                     href="https://wise.com/pay/me/maphallelipsonm" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="w-full py-4 bg-accent-blue text-bg text-[10px] font-black uppercase tracking-[0.2em] rounded flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(0,242,255,0.4)] transition-all"
+                    className="w-full py-4 bg-accent-blue text-bg text-[10px] font-black uppercase tracking-[0.2em] rounded flex items-center justify-center gap-2 transition-colors hover:bg-accent-blue/90"
                   >
                     <Plus className="w-3.5 h-3.5" /> Inject_Liquidity
                   </a>
