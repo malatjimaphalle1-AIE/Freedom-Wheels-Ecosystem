@@ -35,6 +35,7 @@ export interface WiseTransferStatus {
 interface WiseRequestContext {
   apiKey?: string;
   wiseEnv?: string;
+  profileId?: string;
 }
 
 const getWiseBase = (wiseEnv?: string) =>
@@ -89,7 +90,17 @@ export async function getWiseQuote(request: WiseQuoteRequest, context: WiseReque
   else if (request.targetAmount) params.append("targetAmount", request.targetAmount.toString());
   else throw new Error("Either sourceAmount or targetAmount must be provided");
 
-  return makeWiseRequest<WiseQuote>(`/v3/profiles/${process.env.WISE_PROFILE_ID}/quotes?${params}`, "GET", undefined, context);
+  const profileId = context.profileId || process.env.WISE_PROFILE_ID;
+  if (!profileId) {
+    throw new Error("WISE_PROFILE_ID not configured");
+  }
+
+  return makeWiseRequest<WiseQuote>(
+    `/v3/profiles/${profileId}/quotes?${params}`,
+    "GET",
+    undefined,
+    context
+  );
 }
 
 export async function getWiseTransferStatus(

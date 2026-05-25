@@ -2,7 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getWiseTransferStatus } from "./api/wise";
+import { getWiseQuote, getWiseTransferStatus } from "./api/wise";
 
 if (process.env.NODE_ENV !== "production") {
   const { config } = await import("dotenv");
@@ -283,16 +283,28 @@ const createWiseRecipient = async (profileId: string, currency: string, destinat
 };
 
 const createWiseQuote = async (profileId: string, sourceCurrency: string, targetCurrency: string, amount: number, req?: express.Request) => {
-  return wiseFetch("/v1/quotes", req, {
-    method: "POST",
-    body: {
-      profile: profileId,
+  const quote = await getWiseQuote(
+    {
       sourceCurrency,
       targetCurrency,
       sourceAmount: amount,
-      type: "BALANCE_PAYOUT"
+    },
+    {
+      apiKey: (req?.headers["x-wise-api-key"] as string) || process.env.WISE_API_KEY,
+      wiseEnv: req?.headers["x-wise-env"] as string | undefined,
+      profileId,
     }
-  });
+  );
+
+  return {
+    id: quote.id,
+    rate: quote.rate,
+    sourceAmount: quote.sourceAmount,
+    targetAmount: quote.targetAmount,
+    expiresAt: quote.expiresAt,
+    raw: quote,
+    type: "BALANCE_PAYOUT",
+  };
 };
 
 const createWiseTransfer = async (quoteId: string, targetAccountId: string, req?: express.Request) => {
