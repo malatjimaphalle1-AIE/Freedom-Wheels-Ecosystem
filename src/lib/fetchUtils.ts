@@ -1,14 +1,36 @@
 export async function fetchWithRetry(url: string, options: any = {}, retries = 3, backoff = 1000) {
   try {
     const response = await fetch(url, options);
+    const contentType = response.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+
+    let payload: any = null;
+    if (isJson) {
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+    } else {
+      const text = await response.text();
+      payload = text ? { message: text } : null;
+    }
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const backendMessage =
+        payload?.error || payload?.message || payload?.details || payload?.status || null;
+      throw new Error(
+        backendMessage
+          ? `HTTP ${response.status}: ${backendMessage}`
+          : `HTTP error! status: ${response.status}`
+      );
     }
-    const contentType = response.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-       throw new Error(`Expected JSON but got ${contentType}`);
+
+    if (!isJson) {
+      throw new Error(`Expected JSON but got ${contentType || "unknown content type"}`);
     }
-    return await response.json();
+
+    return payload;
   } catch (error: any) {
     if (retries > 0 && (error.name === 'AbortError' || error.message.includes('fetch'))) {
       await new Promise(resolve => setTimeout(resolve, backoff));
