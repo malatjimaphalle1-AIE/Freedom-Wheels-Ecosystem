@@ -61,6 +61,10 @@ export default function WalletPage() {
   const [logs, setLogs] = React.useState<any[]>([]);
   const [isSettling, setIsSettling] = React.useState(false);
   const [auditSearch, setAuditSearch] = React.useState("");
+  const [, startWiseModalTransition] = React.useTransition();
+  const openWiseConfig = React.useCallback(() => {
+    startWiseModalTransition(() => setIsWiseConfigOpen(true));
+  }, []);
 
   const fetchWiseData = async (showSync = false) => {
     if (showSync) setIsSyncing(true);
@@ -110,7 +114,7 @@ export default function WalletPage() {
     e.preventDefault();
     localStorage.setItem("SOVEREIGN_WISE_KEY", wiseConfig.apiKey);
     localStorage.setItem("SOVEREIGN_WISE_PROFILE", wiseConfig.profileId);
-    setIsWiseConfigOpen(false);
+    startWiseModalTransition(() => setIsWiseConfigOpen(false));
     fetchWiseData(true);
   };
 
@@ -342,6 +346,9 @@ export default function WalletPage() {
         });
       });
 
+      fetch("/api/withdrawal-processor", { method: "POST" }).catch((processorErr) => {
+        console.warn("Withdrawal processor trigger failed:", processorErr);
+      });
       setWithdrawStatus('success');
       setTimeout(() => {
         setIsWithdrawModalOpen(false);
@@ -597,7 +604,7 @@ export default function WalletPage() {
                                <p className="text-[9px] text-text-dim uppercase leading-relaxed">{wiseError}</p>
                             </div>
                             <button 
-                              onClick={() => setIsWiseConfigOpen(true)}
+                              onClick={openWiseConfig}
                               className="text-[9px] font-black uppercase text-accent-blue border-b border-accent-blue/30 hover:border-accent-blue transition-all"
                             >
                               FIX_CONFIGURATION
@@ -614,7 +621,7 @@ export default function WalletPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button 
-                        onClick={() => setIsWiseConfigOpen(true)}
+                        onClick={openWiseConfig}
                         className="p-2 border border-border-dim rounded bg-bg hover:border-accent-blue transition-colors text-text-dim hover:text-accent-blue"
                         title="Wise Neural Configuration"
                       >

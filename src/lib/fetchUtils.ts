@@ -2,7 +2,16 @@ export async function fetchWithRetry(url: string, options: any = {}, retries = 3
   try {
     const response = await fetch(url, options);
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      let message = `HTTP error! status: ${response.status}`;
+      try {
+        const data = await response.json();
+        message = data?.error || data?.message || message;
+      } catch {
+        // Keep the status-based fallback when the server does not return JSON.
+      }
+      const error = new Error(message);
+      (error as any).status = response.status;
+      throw error;
     }
     const contentType = response.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
