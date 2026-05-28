@@ -253,7 +253,7 @@ const mockLogs: ActivityLog[] = [
   { id: 'log_002', title: 'Lead Converted', desc: 'Sarah Chen moved to Hot status', type: 'lead', createdAt: '2025-03-01T13:15:00Z' },
   { id: 'log_003', title: 'Revenue Received', desc: '$1,240.00 from Content Syndicator', type: 'revenue', createdAt: '2025-03-01T12:00:00Z' },
   { id: 'log_004', title: 'System Update', desc: 'Traffic Engine v2.1 deployed', type: 'system', createdAt: '2025-03-01T10:45:00Z' },
-  { id: 'log_005', title: 'New Referral', desc: 'Marcus referred James Okonkwo', type: 'referral', createdAt: '2025-03-01T09:30:00Z' },
+  { id: 'log_005', title: 'New Referral', desc: 'Maphalle referred James Okonkwo', type: 'referral', createdAt: '2025-03-01T09:30:00Z' },
 ]
 
 const mockNotifications: Notification[] = [

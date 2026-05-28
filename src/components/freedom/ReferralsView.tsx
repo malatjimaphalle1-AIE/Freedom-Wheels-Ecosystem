@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Copy, Check, Share2, Users, Gift, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 
-const referralCode = 'FW-MARCUS-2025'
+const referralCode = 'FW-MAPHALLE-2025'
 
 const referralStats = {
   totalReferred: 24,

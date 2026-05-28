@@ -37,7 +37,7 @@ const videos = [
 ]
 
 const instructors = [
-  { name: 'Marcus Freedom', role: 'Founder & Chief Architect', courses: 12 },
+  { name: 'Maphalle Malatji', role: 'Founder & Master Architect', courses: 12 },
   { name: 'Dr. Sarah Chen', role: 'AI Strategy Lead', courses: 8 },
   { name: 'James Okonkwo', role: 'Automation Specialist', courses: 6 },
 ]

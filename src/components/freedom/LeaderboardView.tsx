@@ -8,7 +8,7 @@ import { useState } from 'react'
 const tabs = ['All', 'Revenue', 'Engines', 'Referrals', 'Community']
 
 const leaderboardData = [
-  { rank: 1, name: 'Marcus Freedom', score: 9840, revenue: '$24.5K', engines: 7, badge: 'SOVEREIGN', pulse: true },
+  { rank: 1, name: 'Maphalle Malatji', score: 9840, revenue: '$24.5K', engines: 7, badge: 'SOVEREIGN', pulse: true },
   { rank: 2, name: 'Sarah Chen', score: 8720, revenue: '$19.2K', engines: 5, badge: 'COMMANDER', pulse: true },
   { rank: 3, name: 'David Kim', score: 7650, revenue: '$16.8K', engines: 4, badge: 'COMMANDER', pulse: false },
   { rank: 4, name: 'Amara Osei', score: 6890, revenue: '$14.1K', engines: 4, badge: 'OPERATOR', pulse: true },
