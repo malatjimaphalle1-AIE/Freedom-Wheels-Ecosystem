@@ -1,87 +1,82 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import firebaseConfigFromJson from '../../firebase-applet-config.json';
+import { initializeApp, getApps, getApp } from 'firebase/app'
+import { getAuth, connectAuthEmulator } from 'firebase/auth'
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
+import { getStorage, connectStorageEmulator } from 'firebase/storage'
 
-// Allow environment variables to override JSON config (useful for Vercel deployments)
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigFromJson.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigFromJson.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigFromJson.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigFromJson.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigFromJson.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigFromJson.appId,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || firebaseConfigFromJson.measurementId,
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigFromJson.firestoreDatabaseId,
-};
-
-const app = initializeApp(firebaseConfig);
-// Use initializeFirestore with long polling to ensure connectivity in restricted environments
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-}, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
-
-// Test Firestore connection as per critical instructions
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log("Firestore connection established successfully.");
-  } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. The client is offline.");
-    } else {
-      console.error("Firestore connectivity check failing:", error);
-    }
-  }
-}
-testConnection();
-
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  }
+// Initialize Firebase (prevent duplicate initialization)
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+
+// Initialize services
+export const auth = getAuth(app)
+export const db = getFirestore(app)
+export const storage = getStorage(app)
+
+export default app
+
+// Founder email constant
+export const FOUNDER_EMAIL = process.env.NEXT_PUBLIC_FOUNDER_EMAIL || 'maphalle.malatji@freedomwheels.io'
+
+// User roles
+export const USER_ROLES = {
+  FOUNDER: 'FOUNDER',
+  ADMIN: 'ADMIN',
+  SOVEREIGN: 'SOVEREIGN',
+  PRO: 'PRO',
+  STARTER: 'STARTER',
+  FREE: 'FREE',
+} as const
+
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES]
+
+// Role permissions
+export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
+  FOUNDER: [
+    'all', // Unlimited access
+  ],
+  ADMIN: [
+    'dashboard', 'builder', 'leads', 'wallet', 'marketplace', 'analysis',
+    'traffic', 'automation', 'leaderboard', 'referrals', 'knowledge',
+    'settings', 'profile', 'admin_panel', 'user_management', 'system_config',
+  ],
+  SOVEREIGN: [
+    'dashboard', 'builder', 'leads', 'wallet', 'marketplace', 'analysis',
+    'traffic', 'automation', 'leaderboard', 'referrals', 'knowledge',
+    'settings', 'profile',
+  ],
+  PRO: [
+    'dashboard', 'builder', 'leads', 'wallet', 'marketplace', 'analysis',
+    'traffic', 'settings', 'profile',
+  ],
+  STARTER: [
+    'dashboard', 'leads', 'wallet', 'settings', 'profile',
+  ],
+  FREE: [
+    'dashboard', 'settings', 'profile',
+  ],
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+export function hasPermission(role: UserRole, permission: string): boolean {
+  const perms = ROLE_PERMISSIONS[role]
+  if (perms.includes('all')) return true
+  return perms.includes(permission)
 }
 
-export default app;
+export function isFounder(email: string | null | undefined): boolean {
+  if (!email) return false
+  return email.toLowerCase() === FOUNDER_EMAIL.toLowerCase()
+}
+
+export function getRoleFromEmail(email: string | null | undefined): UserRole {
+  if (isFounder(email)) return USER_ROLES.FOUNDER
+  return USER_ROLES.FREE // Default role for new users
+}

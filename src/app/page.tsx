@@ -1,15 +1,17 @@
 'use client'
 
 import { useFreedomStore, type ViewType } from '@/lib/freedom-store'
+import { useAuth } from '@/components/freedom/AuthProvider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -33,10 +35,14 @@ import {
   ChevronRight,
   Shield,
   Zap,
+  LogOut,
+  Crown,
+  Loader2,
 } from 'lucide-react'
 import { useState } from 'react'
 
 import LandingView from '@/components/freedom/LandingView'
+import LoginView from '@/components/freedom/LoginView'
 import DashboardView from '@/components/freedom/DashboardView'
 import EngineBuilderView from '@/components/freedom/EngineBuilderView'
 import LeadIntelligenceView from '@/components/freedom/LeadIntelligenceView'
@@ -50,12 +56,14 @@ import ReferralsView from '@/components/freedom/ReferralsView'
 import KnowledgeBaseView from '@/components/freedom/KnowledgeBaseView'
 import SettingsView from '@/components/freedom/SettingsView'
 import ProfileView from '@/components/freedom/ProfileView'
+import { signOutUser } from '@/lib/firebase-auth'
 
 interface NavItem {
   view: ViewType
   label: string
   icon: typeof LayoutDashboard
   badge?: string
+  founderOnly?: boolean
 }
 
 const navItems: NavItem[] = [
@@ -76,6 +84,7 @@ const navItems: NavItem[] = [
 
 const viewLabels: Record<ViewType, string> = {
   landing: 'Landing',
+  login: 'Sign In',
   dashboard: 'Command Center',
   builder: 'Engine Builder',
   leads: 'Lead Intelligence',
@@ -95,6 +104,8 @@ function ViewRenderer({ view }: { view: ViewType }) {
   switch (view) {
     case 'landing':
       return <LandingView />
+    case 'login':
+      return <LoginView />
     case 'dashboard':
       return <DashboardView />
     case 'builder':
@@ -132,18 +143,71 @@ export default function Home() {
     setCurrentView,
     notifications,
     markNotificationRead,
-    user,
     sidebarOpen,
     setSidebarOpen,
   } = useFreedomStore()
 
+  const { user, profile, loading, isAuthenticated, isFounderUser } = useAuth()
+
   const [searchQuery, setSearchQuery] = useState('')
+  const [loggingOut, setLoggingOut] = useState(false)
   const unreadCount = notifications.filter((n) => !n.read).length
+
+  const handleSignOut = async () => {
+    setLoggingOut(true)
+    try {
+      await signOutUser()
+      setCurrentView('landing')
+    } catch (error) {
+      console.error('Error signing out:', error)
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-fw-bg items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-fw-accent/10 flex items-center justify-center fw-glow-strong animate-pulse">
+            <Zap className="w-6 h-6 text-fw-accent" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 text-fw-accent animate-spin" />
+            <span className="text-xs font-mono text-fw-dim tracking-widest uppercase">
+              Initializing Ecosystem...
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Landing view - full page, no sidebar
   if (currentView === 'landing') {
     return <LandingView />
   }
+
+  // Login view - full page, no sidebar
+  if (currentView === 'login') {
+    return <LoginView />
+  }
+
+  // If not authenticated, redirect to login
+  if (!isAuthenticated) {
+    return <LoginView />
+  }
+
+  // Get display info from Firebase profile
+  const displayName = profile?.displayName || user?.displayName || user?.email?.split('@')[0] || 'User'
+  const userInitials = displayName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+  const userPlan = profile?.plan || 'FREE'
 
   return (
     <div className="flex h-screen bg-fw-bg text-fw-text overflow-hidden">
@@ -225,6 +289,21 @@ export default function Home() {
               &quot;Income that works without you is not a dream—it is an engineered reality.&quot;
             </p>
           </div>
+
+          {/* Founder Status */}
+          {isFounderUser && (
+            <div className="mt-3 p-3 rounded-lg border border-fw-gold/30 bg-fw-gold/5">
+              <div className="flex items-center gap-2">
+                <Crown className="w-3 h-3 text-fw-gold" />
+                <span className="text-[9px] font-mono tracking-widest uppercase text-fw-gold">
+                  Sovereign Founder
+                </span>
+              </div>
+              <p className="text-[9px] text-fw-dim font-mono mt-1">
+                Unlimited access • All modules
+              </p>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -269,13 +348,23 @@ export default function Home() {
             <div className="hidden lg:flex items-center gap-4 mr-4">
               <div className="flex items-center gap-1.5">
                 <TrendingUp className="w-3.5 h-3.5 text-fw-green" />
-                <span className="text-xs font-mono text-fw-green">$9.2K</span>
+                <span className="text-xs font-mono text-fw-green">
+                  ${((profile?.totalRevenue || 9200) / 1000).toFixed(1)}K
+                </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Cpu className="w-3.5 h-3.5 text-fw-accent" />
-                <span className="text-xs font-mono text-fw-accent">3 Active</span>
+                <span className="text-xs font-mono text-fw-accent">{profile?.activeEngines || 3} Active</span>
               </div>
             </div>
+
+            {/* Founder Badge in Header */}
+            {isFounderUser && (
+              <Badge className="hidden sm:flex items-center bg-fw-gold/10 text-fw-gold border border-fw-gold/30 text-[9px] animate-pulse">
+                <Crown className="w-3 h-3 mr-1" />
+                FOUNDER
+              </Badge>
+            )}
 
             {/* Notifications */}
             <DropdownMenu>
@@ -318,28 +407,72 @@ export default function Home() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* User Avatar */}
-            <button
-              onClick={() => setCurrentView('profile')}
-              className="flex items-center gap-2 pl-3 border-l border-fw-border"
-            >
-              <div className="w-8 h-8 rounded-full bg-fw-accent/10 flex items-center justify-center">
-                <span className="text-xs font-bold text-fw-accent font-mono">
-                  {user.name
-                    .split(' ')
-                    .map((n) => n[0])
-                    .join('')}
-                </span>
-              </div>
-              <div className="hidden sm:block text-left">
-                <p className="text-xs font-bold tracking-wider">
-                  {user.name}
-                </p>
-                <p className="text-[9px] text-fw-dim font-mono">
-                  {user.plan} PLAN
-                </p>
-              </div>
-            </button>
+            {/* User Avatar with Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 pl-3 border-l border-fw-border cursor-pointer">
+                  <Avatar className="w-8 h-8 border border-fw-accent/30">
+                    {profile?.photoURL ? (
+                      <AvatarImage src={profile.photoURL} alt={displayName} />
+                    ) : null}
+                    <AvatarFallback className="bg-fw-accent/10 text-fw-accent text-xs font-bold">
+                      {userInitials || <User className="w-4 h-4" />}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="hidden sm:block text-left">
+                    <p className="text-xs font-bold tracking-wider">
+                      {displayName}
+                    </p>
+                    <p className="text-[9px] text-fw-dim font-mono">
+                      {userPlan} PLAN
+                    </p>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-56 bg-fw-surface border-fw-border"
+              >
+                <div className="px-3 py-2">
+                  <p className="text-sm font-bold tracking-wider">{displayName}</p>
+                  <p className="text-xs text-fw-dim font-mono">{profile?.email}</p>
+                  {isFounderUser && (
+                    <Badge className="mt-1 bg-fw-gold/10 text-fw-gold border border-fw-gold/30 text-[9px]">
+                      <Crown className="w-3 h-3 mr-1" />
+                      SOVEREIGN FOUNDER
+                    </Badge>
+                  )}
+                </div>
+                <DropdownMenuSeparator className="bg-fw-border" />
+                <DropdownMenuItem
+                  onClick={() => setCurrentView('profile')}
+                  className="cursor-pointer"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setCurrentView('settings')}
+                  className="cursor-pointer"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-fw-border" />
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  disabled={loggingOut}
+                  className="cursor-pointer text-fw-red focus:text-fw-red"
+                >
+                  {loggingOut ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <LogOut className="w-4 h-4 mr-2" />
+                  )}
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 

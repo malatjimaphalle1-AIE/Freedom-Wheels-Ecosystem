@@ -1,9 +1,11 @@
 'use client'
 
-import { useFreedomStore } from '@/lib/freedom-store'
+import { useAuth } from '@/components/freedom/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Button } from '@/components/ui/button'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import {
   User,
   Trophy,
@@ -14,7 +16,22 @@ import {
   Coins,
   Award,
   Crown,
+  Camera,
+  Upload,
+  Loader2,
+  Edit3,
+  Check,
+  X,
+  Mail,
+  Phone,
+  MapPin,
+  Globe,
+  Zap,
 } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { uploadProfilePhoto, updateUserProfile } from '@/lib/firebase-auth'
+import { Input } from '@/components/ui/input'
+import { useToast } from '@/hooks/use-toast'
 
 const achievements = [
   { name: 'First Engine', desc: 'Deploy your first income engine', earned: true, icon: '🚀' },
@@ -35,7 +52,87 @@ const cryptoBalances = [
 ]
 
 export default function ProfileView() {
-  const { user } = useFreedomStore()
+  const { profile, isFounderUser, refreshProfile } = useAuth()
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [editingBio, setEditingBio] = useState(false)
+  const [bioText, setBioText] = useState(profile?.bio || '')
+  const [savingBio, setSavingBio] = useState(false)
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !profile) return
+
+    // Validate file
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File Too Large',
+        description: 'Profile photo must be under 5MB',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid File',
+        description: 'Please upload an image file',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setUploadingPhoto(true)
+    try {
+      await uploadProfilePhoto(profile.uid, file)
+      await refreshProfile()
+      toast({
+        title: 'Photo Updated',
+        description: 'Your profile photo has been updated successfully',
+      })
+    } catch (error) {
+      console.error('Error uploading photo:', error)
+      toast({
+        title: 'Upload Failed',
+        description: 'Failed to upload profile photo. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+
+  const handleSaveBio = async () => {
+    if (!profile) return
+    setSavingBio(true)
+    try {
+      await updateUserProfile(profile.uid, { bio: bioText })
+      await refreshProfile()
+      setEditingBio(false)
+      toast({
+        title: 'Bio Updated',
+        description: 'Your bio has been saved successfully',
+      })
+    } catch (error) {
+      console.error('Error saving bio:', error)
+      toast({
+        title: 'Save Failed',
+        description: 'Failed to update bio. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingBio(false)
+    }
+  }
+
+  const displayName = profile?.displayName || 'New User'
+  const initials = displayName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 
   return (
     <div className="p-4 md:p-6 space-y-6 fw-scrollbar overflow-y-auto h-full">
@@ -44,34 +141,211 @@ export default function ProfileView() {
         <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-fw-accent/10 via-fw-gold/10 to-fw-purple/10" />
         <CardContent className="relative z-10 pt-12">
           <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-            <div className="w-20 h-20 rounded-full bg-fw-accent/10 border-2 border-fw-accent/30 flex items-center justify-center">
-              <User className="w-10 h-10 text-fw-accent" />
+            {/* Avatar with upload */}
+            <div className="relative group">
+              <Avatar className="w-20 h-20 border-2 border-fw-accent/30">
+                {profile?.photoURL ? (
+                  <AvatarImage src={profile.photoURL} alt={displayName} />
+                ) : null}
+                <AvatarFallback className="bg-fw-accent/10 text-fw-accent text-xl font-bold">
+                  {initials || <User className="w-10 h-10" />}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingPhoto}
+                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                {uploadingPhoto ? (
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                ) : (
+                  <Camera className="w-5 h-5 text-white" />
+                )}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
             </div>
+
             <div className="flex-1">
-              <h2 className="text-2xl font-bold tracking-wider uppercase">
-                {user.name}
-              </h2>
-              <p className="text-fw-dim text-sm font-mono">{user.email}</p>
-              <div className="flex items-center gap-2 mt-2">
-                <Badge className="bg-fw-gold/10 text-fw-gold border border-fw-gold/30 text-xs">
-                  <Crown className="w-3 h-3 mr-1" />
-                  {user.plan} PLAN
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-2xl font-bold tracking-wider uppercase">
+                  {displayName}
+                </h2>
+                {isFounderUser && (
+                  <Badge className="bg-fw-gold/10 text-fw-gold border border-fw-gold/30 text-xs animate-pulse">
+                    <Crown className="w-3 h-3 mr-1" />
+                    FOUNDER
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <Mail className="w-3 h-3 text-fw-dim" />
+                <p className="text-fw-dim text-sm font-mono">{profile?.email}</p>
+              </div>
+              {profile?.phone && (
+                <div className="flex items-center gap-2 mt-1">
+                  <Phone className="w-3 h-3 text-fw-dim" />
+                  <p className="text-fw-dim text-sm font-mono">{profile.phone}</p>
+                </div>
+              )}
+              {profile?.location && (
+                <div className="flex items-center gap-2 mt-1">
+                  <MapPin className="w-3 h-3 text-fw-dim" />
+                  <p className="text-fw-dim text-sm font-mono">{profile.location}</p>
+                </div>
+              )}
+              {profile?.website && (
+                <div className="flex items-center gap-2 mt-1">
+                  <Globe className="w-3 h-3 text-fw-dim" />
+                  <p className="text-fw-accent text-sm font-mono">{profile.website}</p>
+                </div>
+              )}
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <Badge className={`${
+                  isFounderUser
+                    ? 'bg-fw-gold/10 text-fw-gold border border-fw-gold/30'
+                    : 'bg-fw-accent/10 text-fw-accent border border-fw-accent/30'
+                } text-xs`}>
+                  {isFounderUser ? (
+                    <Crown className="w-3 h-3 mr-1" />
+                  ) : (
+                    <Zap className="w-3 h-3 mr-1" />
+                  )}
+                  {profile?.plan || 'FREE'} PLAN
                 </Badge>
+                {isFounderUser && profile?.founderTitle && (
+                  <Badge className="bg-fw-accent/10 text-fw-accent border border-fw-accent/30 text-xs">
+                    <Shield className="w-3 h-3 mr-1" />
+                    {profile.founderTitle}
+                  </Badge>
+                )}
                 <span className="text-[10px] text-fw-dim font-mono">
-                  Member since {user.joinDate}
+                  Member since {profile?.joinDate}
                 </span>
               </div>
             </div>
           </div>
+
+          {/* Bio Section */}
+          <div className="mt-4 p-4 rounded-lg border border-fw-border bg-fw-bg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono tracking-widest uppercase text-fw-dim">
+                Bio
+              </span>
+              {!editingBio ? (
+                <Button
+                  onClick={() => {
+                    setBioText(profile?.bio || '')
+                    setEditingBio(true)
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-fw-dim hover:text-fw-text"
+                >
+                  <Edit3 className="w-3 h-3 mr-1" />
+                  <span className="text-[10px]">Edit</span>
+                </Button>
+              ) : (
+                <div className="flex gap-1">
+                  <Button
+                    onClick={handleSaveBio}
+                    disabled={savingBio}
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-fw-green hover:text-fw-green"
+                  >
+                    {savingBio ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Check className="w-3 h-3" />
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => setEditingBio(false)}
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-fw-red hover:text-fw-red"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {editingBio ? (
+              <textarea
+                value={bioText}
+                onChange={(e) => setBioText(e.target.value)}
+                className="w-full bg-fw-surface border border-fw-border rounded px-3 py-2 text-fw-text font-mono text-sm min-h-20 focus:border-fw-accent/50 outline-none resize-none"
+                maxLength={500}
+              />
+            ) : (
+              <p className="text-sm text-fw-dim font-mono leading-relaxed">
+                {profile?.bio || 'No bio yet. Click edit to add your bio.'}
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
+
+      {/* Founder Status Card */}
+      {isFounderUser && (
+        <Card className="bg-gradient-to-r from-fw-gold/5 via-fw-accent/5 to-fw-purple/5 border-fw-gold/30 relative overflow-hidden">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl bg-fw-gold/10 flex items-center justify-center fw-glow-gold">
+                <Crown className="w-7 h-7 text-fw-gold" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold tracking-wider uppercase text-fw-gold">
+                  Sovereign Founder Access
+                </h3>
+                <p className="text-sm text-fw-dim font-mono">
+                  Unlimited & full functionality across all ecosystem modules
+                </p>
+              </div>
+              <Badge className="ml-auto bg-fw-gold/10 text-fw-gold border border-fw-gold/30 text-xs animate-pulse">
+                UNLIMITED
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+              {[
+                'All Engines',
+                'All Leads',
+                'All Markets',
+                'Full Admin',
+                'Priority Support',
+                'Custom Workflows',
+                'API Access',
+                'White Label',
+              ].map((perm) => (
+                <div
+                  key={perm}
+                  className="flex items-center gap-2 p-2 rounded border border-fw-gold/20 bg-fw-gold/5"
+                >
+                  <Check size={12} className="text-fw-gold flex-shrink-0" />
+                  <span className="text-[10px] text-fw-gold font-mono tracking-wider uppercase">
+                    {perm}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* User Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card className="bg-fw-surface border-fw-border">
           <CardContent className="pt-6 text-center">
             <TrendingUp className="w-5 h-5 text-fw-green mx-auto mb-2" />
-            <p className="text-xl font-bold font-mono">$9.2K</p>
+            <p className="text-xl font-bold font-mono">
+              ${((profile?.totalRevenue || 0) / 1000).toFixed(1)}K
+            </p>
             <p className="text-[10px] text-fw-dim font-mono tracking-widest uppercase">
               Total Revenue
             </p>
@@ -80,7 +354,7 @@ export default function ProfileView() {
         <Card className="bg-fw-surface border-fw-border">
           <CardContent className="pt-6 text-center">
             <Trophy className="w-5 h-5 text-fw-gold mx-auto mb-2" />
-            <p className="text-xl font-bold font-mono">3</p>
+            <p className="text-xl font-bold font-mono">{profile?.activeEngines || 0}</p>
             <p className="text-[10px] text-fw-dim font-mono tracking-widest uppercase">
               Active Engines
             </p>
@@ -89,7 +363,7 @@ export default function ProfileView() {
         <Card className="bg-fw-surface border-fw-border">
           <CardContent className="pt-6 text-center">
             <Users className="w-5 h-5 text-fw-accent mx-auto mb-2" />
-            <p className="text-xl font-bold font-mono">24</p>
+            <p className="text-xl font-bold font-mono">{profile?.referrals || 0}</p>
             <p className="text-[10px] text-fw-dim font-mono tracking-widest uppercase">
               Referrals
             </p>
@@ -98,7 +372,7 @@ export default function ProfileView() {
         <Card className="bg-fw-surface border-fw-border">
           <CardContent className="pt-6 text-center">
             <Star className="w-5 h-5 text-fw-purple mx-auto mb-2" />
-            <p className="text-xl font-bold font-mono">#1</p>
+            <p className="text-xl font-bold font-mono">#{profile?.leaderboardRank || 999}</p>
             <p className="text-[10px] text-fw-dim font-mono tracking-widest uppercase">
               Leaderboard
             </p>
@@ -148,9 +422,7 @@ export default function ProfileView() {
                   </p>
                   <p className="text-[10px] text-fw-dim font-mono">{ach.desc}</p>
                 </div>
-                {ach.earned && (
-                  <CheckMark />
-                )}
+                {ach.earned && <CheckMark />}
               </div>
             ))}
           </div>
@@ -217,9 +489,9 @@ export default function ProfileView() {
               <Users className="w-6 h-6 text-fw-accent" />
             </div>
             <div>
-              <p className="text-lg font-bold font-mono">24 Active Referrals</p>
+              <p className="text-lg font-bold font-mono">{profile?.referrals || 0} Active Referrals</p>
               <p className="text-xs text-fw-dim font-mono">
-                $4,320 earned from referral network
+                ${((profile?.referrals || 0) * 180).toLocaleString()} earned from referral network
               </p>
             </div>
             <Badge className="ml-auto bg-fw-gold/10 text-fw-gold border border-fw-gold/30">

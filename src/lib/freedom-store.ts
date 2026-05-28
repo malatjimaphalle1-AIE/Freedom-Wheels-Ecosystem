@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 export type ViewType =
   | 'landing'
+  | 'login'
   | 'dashboard'
   | 'builder'
   | 'leads'
@@ -113,14 +114,15 @@ interface FreedomStore {
   addNotification: (notification: Notification) => void
   markNotificationRead: (id: string) => void
   updateWallet: (data: Partial<WalletData>) => void
+  updateUser: (data: Partial<User>) => void
 }
 
 const mockUser: User = {
   id: 'usr_001',
-  name: 'Marcus Freedom',
-  email: 'marcus@freedomwheels.io',
+  name: 'Maphalle Malatji',
+  email: 'maphalle.malatji@freedomwheels.io',
   avatar: '',
-  plan: 'SOVEREIGN',
+  plan: 'SOVEREIGN FOUNDER',
   joinDate: '2025-01-15',
 }
 
@@ -318,4 +320,5 @@ export const useFreedomStore = create<FreedomStore>((set) => ({
       ),
     })),
   updateWallet: (data) => set((state) => ({ wallet: { ...state.wallet, ...data } })),
+  updateUser: (data) => set((state) => ({ user: { ...state.user, ...data } })),
 }))

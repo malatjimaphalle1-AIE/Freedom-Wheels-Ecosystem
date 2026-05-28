@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { useFreedomStore } from '@/lib/freedom-store'
+import { useAuth } from '@/components/freedom/AuthProvider'
 import {
   Zap,
   Shield,
@@ -54,6 +55,15 @@ const steps = [
 
 export default function LandingView() {
   const setCurrentView = useFreedomStore((s) => s.setCurrentView)
+  const { isAuthenticated } = useAuth()
+
+  const handleEnterEcosystem = () => {
+    if (isAuthenticated) {
+      setCurrentView('dashboard')
+    } else {
+      setCurrentView('login')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-fw-bg text-fw-text">
@@ -102,14 +112,14 @@ export default function LandingView() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
-              onClick={() => setCurrentView('dashboard')}
+              onClick={handleEnterEcosystem}
               className="group flex items-center gap-2 px-8 py-4 bg-fw-accent text-fw-bg font-bold text-sm tracking-widest uppercase rounded-lg fw-glow-strong hover:scale-105 transition-transform"
             >
-              Launch Your First Income Engine
+              {isAuthenticated ? 'Launch Your First Income Engine' : 'Sign In to Get Started'}
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
             <button
-              onClick={() => setCurrentView('dashboard')}
+              onClick={handleEnterEcosystem}
               className="flex items-center gap-2 px-8 py-4 border border-fw-border text-fw-text font-bold text-sm tracking-widest uppercase rounded-lg hover:border-fw-accent/50 transition-colors"
             >
               Command Center
@@ -232,10 +242,10 @@ export default function LandingView() {
             Freedom Wheels income engines.
           </p>
           <button
-            onClick={() => setCurrentView('dashboard')}
+            onClick={handleEnterEcosystem}
             className="group flex items-center gap-2 px-10 py-5 bg-fw-gold text-fw-bg font-bold text-sm tracking-widest uppercase rounded-lg fw-glow-gold hover:scale-105 transition-transform mx-auto"
           >
-            Enter the Ecosystem
+            {isAuthenticated ? 'Enter the Ecosystem' : 'Join the Ecosystem'}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </motion.div>
