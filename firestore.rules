@@ -12,7 +12,7 @@ service cloud.firestore {
 
     // Helper function: Check if user is the founder (MAPHALLE MALATJI)
     function isFounder() {
-      return isAuth() && request.auth.token.email.lower() == 'maphalle.malatji@freedomwheels.io';
+      return isAuth() && request.auth.token.email.lower() == 'malatjimaphalle1@gmail.com';
     }
 
     // Helper function: Check if user owns the document
@@ -89,7 +89,7 @@ service firebase.storage {
     }
 
     function isFounder() {
-      return isAuth() && request.auth.token.email.lower() == 'maphalle.malatji@freedomwheels.io';
+      return isAuth() && request.auth.token.email.lower() == 'malatjimaphalle1@gmail.com';
     }
 
     // Profile photos

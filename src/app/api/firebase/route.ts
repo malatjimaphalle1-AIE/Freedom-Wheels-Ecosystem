@@ -8,13 +8,13 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'verify-founder': {
-        const founderEmail = process.env.NEXT_PUBLIC_FOUNDER_EMAIL || 'maphalle.malatji@freedomwheels.io'
+        const founderEmail = process.env.NEXT_PUBLIC_FOUNDER_EMAIL || 'malatjimaphalle1@gmail.com'
         const isFounder = email?.toLowerCase() === founderEmail.toLowerCase()
         return NextResponse.json({ isFounder, role: isFounder ? 'FOUNDER' : 'FREE' })
       }
 
       case 'get-role': {
-        const founderEmail = process.env.NEXT_PUBLIC_FOUNDER_EMAIL || 'maphalle.malatji@freedomwheels.io'
+        const founderEmail = process.env.NEXT_PUBLIC_FOUNDER_EMAIL || 'malatjimaphalle1@gmail.com'
         const isFounder = email?.toLowerCase() === founderEmail.toLowerCase()
         const role = isFounder ? 'FOUNDER' : 'FREE'
         return NextResponse.json({ role, isFounder })

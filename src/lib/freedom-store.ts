@@ -120,7 +120,7 @@ interface FreedomStore {
 const mockUser: User = {
   id: 'usr_001',
   name: 'Maphalle Malatji',
-  email: 'maphalle.malatji@freedomwheels.io',
+  email: 'malatjimaphalle1@gmail.com',
   avatar: '',
   plan: 'SOVEREIGN FOUNDER',
   joinDate: '2025-01-15',

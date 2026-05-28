@@ -24,7 +24,7 @@ export const storage = getStorage(app)
 export default app
 
 // Founder email constant
-export const FOUNDER_EMAIL = process.env.NEXT_PUBLIC_FOUNDER_EMAIL || 'maphalle.malatji@freedomwheels.io'
+export const FOUNDER_EMAIL = process.env.NEXT_PUBLIC_FOUNDER_EMAIL || 'malatjimaphalle1@gmail.com'
 
 // User roles
 export const USER_ROLES = {
