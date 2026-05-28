@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { ZAI } from 'z-ai-web-dev-sdk'
+import ZAI from 'z-ai-web-dev-sdk'
 
 const zai = new ZAI({ apiKey: process.env.ZAI_API_KEY || '' })
 
