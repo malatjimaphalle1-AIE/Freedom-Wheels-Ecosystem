@@ -12,28 +12,34 @@ import {
 import {
   localGetCurrentUser,
   localGetProfile,
-  localSignOut as localSignOutFn,
   type LocalUser,
+  type LocalProfile,
 } from '@/lib/local-auth'
 import { isFounder, getRoleFromEmail, USER_ROLES, type UserRole } from '@/lib/firebase'
 
-// ---- useSyncExternalStore helpers for client-only state ----
+// ---- Hydration-safe useSyncExternalStore primitives ----
 
 const emptySubscribe = () => () => {}
 
-// Returns false on server, true on client — no hydration mismatch
 function useHasMounted(): boolean {
-  return useSyncExternalStore(
-    emptySubscribe,
-    () => true,
-    () => false
-  )
+  return useSyncExternalStore(emptySubscribe, () => true, () => false)
 }
 
-// Subscribe to localStorage changes for a given key
-function subscribeToLocalStorage(callback: () => void) {
+// ---- Cached localStorage store for auth ----
+// useSyncExternalStore requires referentially stable return values.
+// We cache parsed objects and only create new ones when the raw JSON changes.
+
+const NULL_USER: LocalUser | null = null
+const NULL_PROFILE: LocalProfile | null = null
+
+let _userJSON = ''
+let _userObj: LocalUser | null = null
+let _profileJSON = ''
+let _profileObj: LocalProfile | null = null
+
+function subscribeToAuthStore(callback: () => void) {
+  if (typeof window === 'undefined') return () => {}
   window.addEventListener('storage', callback)
-  // Custom event for same-tab updates
   window.addEventListener('fw-local-auth-change', callback)
   return () => {
     window.removeEventListener('storage', callback)
@@ -41,27 +47,49 @@ function subscribeToLocalStorage(callback: () => void) {
   }
 }
 
-// Read local user from localStorage via useSyncExternalStore (hydration-safe)
-function useLocalUser(): LocalUser | null {
-  return useSyncExternalStore(
-    subscribeToLocalStorage,
-    () => localGetCurrentUser(),
-    () => null // server always returns null
-  )
+function getUserSnapshot(): LocalUser | null {
+  if (typeof window === 'undefined') return NULL_USER
+  const raw = localStorage.getItem('fw_current_user') || ''
+  if (raw === _userJSON) return _userObj
+  _userJSON = raw
+  try {
+    _userObj = raw ? JSON.parse(raw) : null
+  } catch {
+    _userObj = null
+  }
+  return _userObj
 }
 
-// Read local profile from localStorage via useSyncExternalStore (hydration-safe)
-function useLocalProfile(uid: string | null): ReturnType<typeof localGetProfile> {
-  return useSyncExternalStore(
-    subscribeToLocalStorage,
-    () => uid ? localGetProfile(uid) : null,
-    () => null // server always returns null
-  )
+function getProfileSnapshot(uid: string | null): LocalProfile | null {
+  if (typeof window === 'undefined' || !uid) return NULL_PROFILE
+  const raw = localStorage.getItem('fw_local_profiles') || ''
+  if (raw === _profileJSON) return _profileObj
+  _profileJSON = raw
+  try {
+    const all = raw ? JSON.parse(raw) : {}
+    _profileObj = all[uid] || null
+  } catch {
+    _profileObj = null
+  }
+  return _profileObj
 }
 
-// Dispatch a custom event so same-tab useSyncExternalStore subscribers re-read
+// Invalidate the profile cache (called after profile updates)
+function invalidateProfileCache() {
+  _profileJSON = ''
+  _profileObj = null
+}
+
+// Invalidate user cache
+function invalidateUserCache() {
+  _userJSON = ''
+  _userObj = null
+}
+
 function emitLocalAuthChange() {
   if (typeof window !== 'undefined') {
+    invalidateUserCache()
+    invalidateProfileCache()
     window.dispatchEvent(new Event('fw-local-auth-change'))
   }
 }
@@ -102,20 +130,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseProfile, setFirebaseProfile] = useState<FirestoreUserProfile | null>(null)
   const [loading, setLoading] = useState(isFirebaseConfigured)
 
-  // Local auth state via useSyncExternalStore (hydration-safe)
+  // Hydration-safe mount flag
   const mounted = useHasMounted()
-  const localUser = useLocalUser()
-  const localProf = useLocalProfile(localUser?.uid ?? null)
+
+  // Local auth via useSyncExternalStore (hydration-safe, referentially stable)
+  const localUser = useSyncExternalStore(subscribeToAuthStore, getUserSnapshot, () => null)
+  const localProfile = useSyncExternalStore(subscribeToAuthStore, () => getProfileSnapshot(localUser?.uid ?? null), () => null)
 
   // isDemoMode is derived from isFirebaseConfigured (static, same on server & client)
   const isDemoMode = !isFirebaseConfigured
 
   // Profile: use Firebase profile in live mode, local profile in demo mode
-  const profile = isFirebaseConfigured ? firebaseProfile : localProf
+  const profile = isFirebaseConfigured ? firebaseProfile : localProfile as FirestoreUserProfile | null
 
   const setLocalUser = useCallback((newUser: LocalUser | null) => {
-    // When setting local user, update localStorage then emit change event
-    // so useSyncExternalStore re-reads automatically
     if (newUser) {
       localStorage.setItem('fw_current_user', JSON.stringify(newUser))
     } else {
@@ -129,8 +157,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const prof = await getUserProfile(user.uid)
       if (prof) setFirebaseProfile(prof)
     }
-    // For demo mode, useSyncExternalStore auto-reads from localStorage
-    // Just emit a change event to trigger re-read
     emitLocalAuthChange()
   }, [user])
 

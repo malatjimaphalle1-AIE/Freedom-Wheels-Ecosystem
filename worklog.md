@@ -202,3 +202,50 @@ Stage Summary:
 - Real-time validation with masked preview for security
 - Missing local-auth.ts exports (localUploadProfilePhoto, localChangePassword) added
 - All components (SettingsView, ProfileView) now work in demo mode
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Replace "Marcus Freedom" with "Maphalle Malatji" across entire app
+
+Work Log:
+- Searched codebase for all "Marcus Freedom", "Marcus", and "Chief Architect" references
+- Found 4 occurrences across 4 files
+- Updated LeaderboardView.tsx: rank #1 name → Maphalle Malatji
+- Updated KnowledgeBaseView.tsx: instructor name + title → "Maphalle Malatji, Founder & Master Architect"
+- Updated freedom-store.ts: activity log "Marcus referred" → "Maphalle referred"
+- Updated ReferralsView.tsx: referral code FW-MARCUS-2025 → FW-MAPHALLE-2025
+- Verified zero remaining "Marcus" references in src/
+- Lint check: PASS
+- Dev server: OPERATIONAL
+
+Stage Summary:
+- All "Marcus Freedom" references replaced with "Maphalle Malatji"
+- Title standardized to "Founder & Master Architect" everywhere
+- Referral code updated to FW-MAPHALLE-2025
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Fix hydration mismatch error and client-side crash
+
+Work Log:
+- Diagnosed hydration mismatch: isAuthenticated differed between SSR (false) and client (from localStorage)
+- First attempt: useSyncExternalStore with direct JSON.parse — caused infinite re-renders (new object references each call)
+- Second attempt: cached localStorage reader with useSyncExternalStore
+  - getUserSnapshot() caches parsed objects, only re-parses when raw JSON string changes
+  - getProfileSnapshot() same caching strategy
+  - subscribeToAuthStore() listens to 'storage' and 'fw-local-auth-change' custom events
+  - Server snapshot always returns null (hydration-safe)
+- Added useHasMounted() via useSyncExternalStore (false on server, true on client)
+- Updated LandingView.tsx: uses `mounted ? isAuthenticated : false` for button text
+- Updated page.tsx: loading guard includes `!mounted`
+- Updated local-auth.ts: added emitChange() after every localStorage write
+- Lint check: PASS (0 errors)
+- Dev server: OPERATIONAL, all 200 responses
+
+Stage Summary:
+- Hydration mismatch fixed: server and client always render same initial HTML
+- Client-side crash fixed: useSyncExternalStore with cached objects prevents infinite re-renders
+- mounted flag allows consumers to delay auth-dependent rendering until after hydration
+- App shows loading spinner during SSR→client transition, then renders correct state
