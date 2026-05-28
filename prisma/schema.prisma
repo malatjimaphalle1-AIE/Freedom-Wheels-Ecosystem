@@ -66,3 +66,58 @@ model ActivityLog {
   userId    String?
   createdAt DateTime @default(now())
 }
+
+model Wallet {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  balance     Float    @default(0)
+  pending     Float    @default(0)
+  withdrawn   Float    @default(0)
+  currency    String   @default("USD")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assets      WalletAsset[]
+  transactions Transaction[]
+  withdrawals  WithdrawalRequest[]
+}
+
+model WalletAsset {
+  id       String @id @default(cuid())
+  name     String
+  symbol   String
+  amount   Float  @default(0)
+  type     String @default("fiat") // fiat or crypto
+  walletId String
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@unique([walletId, symbol])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  type        String   // credit, debit
+  amount      Float
+  description String
+  status      String   @default("completed") // pending, completed, failed
+  userEmail   String
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model WithdrawalRequest {
+  id              String   @id @default(cuid())
+  amount          Float
+  assetSymbol     String
+  status          String   @default("pending") // pending, processing, completed, failed, cancelled
+  userEmail       String
+  destinationType String   @default("bank") // bank, crypto
+  destinationInfo String   @default("") // JSON: bank details or wallet address
+  notes           String   @default("")
+  walletId        String
+  wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
