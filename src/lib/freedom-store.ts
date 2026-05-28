@@ -92,6 +92,15 @@ export interface WalletData {
   transactions: { id: string; type: string; amount: number; desc: string; date: string }[]
 }
 
+export interface CartItem {
+  id: string
+  name: string
+  price: number
+  category: string
+  quantity: number
+  badge: string | null
+}
+
 interface FreedomStore {
   currentView: ViewType
   engines: Engine[]
@@ -101,6 +110,7 @@ interface FreedomStore {
   user: User
   wallet: WalletData
   sidebarOpen: boolean
+  cart: CartItem[]
 
   setCurrentView: (view: ViewType) => void
   setSidebarOpen: (open: boolean) => void
@@ -115,6 +125,10 @@ interface FreedomStore {
   markNotificationRead: (id: string) => void
   updateWallet: (data: Partial<WalletData>) => void
   updateUser: (data: Partial<User>) => void
+  addToCart: (item: Omit<CartItem, 'quantity'>) => void
+  removeFromCart: (id: string) => void
+  updateCartQuantity: (id: string, quantity: number) => void
+  clearCart: () => void
 }
 
 const mockUser: User = {
@@ -295,6 +309,7 @@ export const useFreedomStore = create<FreedomStore>((set) => ({
   user: mockUser,
   wallet: mockWallet,
   sidebarOpen: true,
+  cart: [],
 
   setCurrentView: (view) => set({ currentView: view }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -321,4 +336,26 @@ export const useFreedomStore = create<FreedomStore>((set) => ({
     })),
   updateWallet: (data) => set((state) => ({ wallet: { ...state.wallet, ...data } })),
   updateUser: (data) => set((state) => ({ user: { ...state.user, ...data } })),
+  addToCart: (item) =>
+    set((state) => {
+      const existing = state.cart.find((c) => c.id === item.id)
+      if (existing) {
+        return {
+          cart: state.cart.map((c) =>
+            c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
+          ),
+        }
+      }
+      return { cart: [...state.cart, { ...item, quantity: 1 }] }
+    }),
+  removeFromCart: (id) =>
+    set((state) => ({ cart: state.cart.filter((c) => c.id !== id) })),
+  updateCartQuantity: (id, quantity) =>
+    set((state) => ({
+      cart:
+        quantity <= 0
+          ? state.cart.filter((c) => c.id !== id)
+          : state.cart.map((c) => (c.id === id ? { ...c, quantity } : c)),
+    })),
+  clearCart: () => set({ cart: [] }),
 }))
