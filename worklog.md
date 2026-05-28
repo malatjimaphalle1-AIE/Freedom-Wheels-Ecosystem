@@ -106,3 +106,56 @@ Stage Summary:
   - Grants unlimited write access in Firestore security rules
   - Unlocks all ecosystem modules (engines, leads, markets, admin, workflows, API, white-label)
   - Founder title: "Founder & Master Architect"
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix Firebase auth/api-key-not-valid error by implementing graceful degradation layer
+
+Work Log:
+- Diagnosed root cause: .env.local contained placeholder Firebase credentials causing auth/api-key-not-valid error
+- Designed dual-mode architecture: Firebase Live Mode + Local Demo Mode
+- Updated src/lib/firebase.ts:
+  - Added isValidFirebaseConfig() that detects placeholder/demo API keys
+  - Export isFirebaseConfigured boolean flag
+  - Firebase app/services only initialized when credentials are valid (auth/db/storage can be null)
+- Created src/lib/local-auth.ts — complete local auth service:
+  - localStorage-based user accounts, profiles, and sessions
+  - Pre-seeded founder account (malatjimaphalle1@gmail.com / Freedom2025!)
+  - localSignIn, localSignUp, localSignOut, localResetPassword
+  - localGetProfile, localUpdateProfile, localUploadProfilePhoto, localChangePassword
+  - createLocalDefaultProfile with founder detection
+- Updated src/lib/firebase-auth.ts:
+  - All Firebase functions guard against null auth/db/storage
+  - Export isFirebaseConfigured for consumers
+  - onAuthChange returns empty callback when Firebase unavailable
+- Updated src/components/freedom/AuthProvider.tsx:
+  - isDemoMode derived from !isFirebaseConfigured (not set in effects)
+  - Local state initialized directly from localStorage for demo mode
+  - No setState in effects (fixed React lint rule)
+  - Exposed isDemoMode, localUser, setLocalUser in context
+  - useMemo for context value
+- Updated src/components/freedom/LoginView.tsx:
+  - Demo Mode banner with gold border and explanation
+  - "Quick Login — Founder Access" button for one-click founder demo login
+  - Google Sign-In hidden in demo mode (requires Firebase)
+  - Firebase setup instructions shown in demo mode
+  - Connection mode indicator (Demo/Live) on branding panel
+  - Both local and Firebase auth flows supported
+- Updated src/app/page.tsx:
+  - handleSignOut uses localSignOut in demo mode, Firebase signOut in live mode
+  - setLocalUser(null) on sign out in demo mode
+- Updated src/components/freedom/ProfileView.tsx:
+  - Photo upload and bio save use local functions in demo mode
+- Updated src/components/freedom/SettingsView.tsx:
+  - All save operations (profile, API keys, notifications, photo, password) route to local functions in demo mode
+- Lint check: PASS (0 errors)
+- Dev server: OPERATIONAL
+
+Stage Summary:
+- App now works fully without Firebase credentials (Demo Mode)
+- When valid Firebase credentials are added to .env.local, app auto-switches to Live Mode
+- Founder account pre-seeded: malatjimaphalle1@gmail.com / Freedom2025!
+- Profile photo uploads work in demo mode (stored as base64 in localStorage)
+- All profile settings editable and persisted in demo mode
+- No more auth/api-key-not-valid error

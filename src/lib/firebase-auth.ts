@@ -15,7 +15,10 @@ import {
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { auth, db, storage, isFounder, getRoleFromEmail, USER_ROLES, type UserRole } from './firebase'
+import { auth, db, storage, isFounder, getRoleFromEmail, USER_ROLES, isFirebaseConfigured, type UserRole } from './firebase'
+
+// Re-export isFirebaseConfigured for convenience
+export { isFirebaseConfigured }
 
 // User profile interface for Firestore
 export interface FirestoreUserProfile {
@@ -109,6 +112,12 @@ export function createDefaultProfile(user: User): FirestoreUserProfile {
 // Create or update user profile in Firestore
 export async function createUserProfile(user: User): Promise<FirestoreUserProfile> {
   const profile = createDefaultProfile(user)
+
+  if (!db) {
+    console.warn('[FIREBASE] Firestore not available — returning default profile')
+    return profile
+  }
+
   const userRef = doc(db, 'users', user.uid)
 
   try {
@@ -146,6 +155,8 @@ export async function createUserProfile(user: User): Promise<FirestoreUserProfil
 
 // Get user profile from Firestore
 export async function getUserProfile(uid: string): Promise<FirestoreUserProfile | null> {
+  if (!db) return null
+
   try {
     const userRef = doc(db, 'users', uid)
     const docSnap = await getDoc(userRef)
@@ -164,6 +175,11 @@ export async function updateUserProfile(
   uid: string,
   updates: Partial<FirestoreUserProfile>
 ): Promise<void> {
+  if (!db) {
+    console.warn('[FIREBASE] Firestore not available — profile update skipped')
+    return
+  }
+
   try {
     const userRef = doc(db, 'users', uid)
     await updateDoc(userRef, {
@@ -181,13 +197,17 @@ export async function uploadProfilePhoto(
   uid: string,
   file: File
 ): Promise<string> {
+  if (!storage) {
+    throw new Error('Firebase Storage not available')
+  }
+
   try {
     const fileRef = ref(storage, `profile-photos/${uid}/${file.name}`)
     await uploadBytes(fileRef, file)
     const downloadURL = await getDownloadURL(fileRef)
 
     // Update both Auth profile and Firestore profile
-    if (auth.currentUser) {
+    if (auth?.currentUser) {
       await updateProfile(auth.currentUser, { photoURL: downloadURL })
     }
     await updateUserProfile(uid, { photoURL: downloadURL })
@@ -199,20 +219,23 @@ export async function uploadProfilePhoto(
   }
 }
 
-// Auth functions
+// Auth functions — all guard against missing auth module
 export async function signUpWithEmail(email: string, password: string) {
+  if (!auth) throw new Error('Firebase Authentication not configured. Add valid credentials to .env.local')
   const credential = await createUserWithEmailAndPassword(auth, email, password)
   await createUserProfile(credential.user)
   return credential.user
 }
 
 export async function signInWithEmail(email: string, password: string) {
+  if (!auth) throw new Error('Firebase Authentication not configured. Add valid credentials to .env.local')
   const credential = await signInWithEmailAndPassword(auth, email, password)
   await createUserProfile(credential.user)
   return credential.user
 }
 
 export async function signInWithGoogle() {
+  if (!auth) throw new Error('Firebase Authentication not configured. Add valid credentials to .env.local')
   const provider = new GoogleAuthProvider()
   const credential = await signInWithPopup(auth, provider)
   await createUserProfile(credential.user)
@@ -220,40 +243,47 @@ export async function signInWithGoogle() {
 }
 
 export async function signOutUser() {
+  if (!auth) throw new Error('Firebase Authentication not configured')
   await signOut(auth)
 }
 
 export async function updateUserDisplayName(displayName: string) {
-  if (auth.currentUser) {
-    await updateProfile(auth.currentUser, { displayName })
-    await updateUserProfile(auth.currentUser.uid, { displayName })
-  }
+  if (!auth?.currentUser) return
+  await updateProfile(auth.currentUser, { displayName })
+  await updateUserProfile(auth.currentUser.uid, { displayName })
 }
 
 export async function changeUserPassword(oldPassword: string, newPassword: string) {
-  if (!auth.currentUser || !auth.currentUser.email) return
+  if (!auth?.currentUser || !auth.currentUser.email) return
   const credential = EmailAuthProvider.credential(auth.currentUser.email, oldPassword)
   await reauthenticateWithCredential(auth.currentUser, credential)
   await updatePassword(auth.currentUser, newPassword)
 }
 
 export async function resetPassword(email: string) {
+  if (!auth) throw new Error('Firebase Authentication not configured')
   await sendPasswordResetEmail(auth, email)
 }
 
 export async function deleteAccount() {
-  if (auth.currentUser) {
+  if (auth?.currentUser) {
     await deleteUser(auth.currentUser)
   }
 }
 
 // Listen to auth state
 export function onAuthChange(callback: (user: User | null) => void) {
+  if (!auth) {
+    // Firebase not configured — immediately return null user
+    callback(null)
+    return () => {}
+  }
   return onAuthStateChanged(auth, callback)
 }
 
 // Listen to user profile changes in real-time
 export function onProfileChange(uid: string, callback: (profile: FirestoreUserProfile) => void) {
+  if (!db) return () => {}
   const userRef = doc(db, 'users', uid)
   return onSnapshot(userRef, (docSnap) => {
     if (docSnap.exists()) {

@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { useState, useRef } from 'react'
 import { uploadProfilePhoto, updateUserProfile } from '@/lib/firebase-auth'
+import { localUploadProfilePhoto, localUpdateProfile } from '@/lib/local-auth'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 
@@ -52,7 +53,7 @@ const cryptoBalances = [
 ]
 
 export default function ProfileView() {
-  const { profile, isFounderUser, refreshProfile } = useAuth()
+  const { profile, isFounderUser, isDemoMode, refreshProfile } = useAuth()
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
@@ -85,8 +86,13 @@ export default function ProfileView() {
 
     setUploadingPhoto(true)
     try {
-      await uploadProfilePhoto(profile.uid, file)
-      await refreshProfile()
+      if (isDemoMode) {
+        await localUploadProfilePhoto(profile.uid, file)
+        await refreshProfile()
+      } else {
+        await uploadProfilePhoto(profile.uid, file)
+        await refreshProfile()
+      }
       toast({
         title: 'Photo Updated',
         description: 'Your profile photo has been updated successfully',
@@ -107,8 +113,13 @@ export default function ProfileView() {
     if (!profile) return
     setSavingBio(true)
     try {
-      await updateUserProfile(profile.uid, { bio: bioText })
-      await refreshProfile()
+      if (isDemoMode) {
+        localUpdateProfile(profile.uid, { bio: bioText })
+        await refreshProfile()
+      } else {
+        await updateUserProfile(profile.uid, { bio: bioText })
+        await refreshProfile()
+      }
       setEditingBio(false)
       toast({
         title: 'Bio Updated',

@@ -9,10 +9,19 @@ import {
   signUpWithEmail,
   signInWithGoogle,
   resetPassword,
+  isFirebaseConfigured,
 } from '@/lib/firebase-auth'
+import {
+  localSignIn,
+  localSignUp,
+  localSignOut,
+  localResetPassword,
+  type LocalUser,
+} from '@/lib/local-auth'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import {
   Zap,
   Mail,
@@ -24,6 +33,10 @@ import {
   AlertCircle,
   Loader2,
   Shield,
+  Crown,
+  Wifi,
+  WifiOff,
+  Info,
 } from 'lucide-react'
 
 type AuthMode = 'login' | 'signup' | 'reset'
@@ -39,6 +52,7 @@ export default function LoginView() {
   const [resetSent, setResetSent] = useState(false)
 
   const setCurrentView = useFreedomStore((s) => s.setCurrentView)
+  const { isDemoMode, setLocalUser } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,20 +60,54 @@ export default function LoginView() {
     setLoading(true)
 
     try {
-      if (mode === 'login') {
-        await signInWithEmail(email, password)
-        setCurrentView('dashboard')
-      } else if (mode === 'signup') {
-        if (!displayName.trim()) {
-          setError('Display name is required')
-          setLoading(false)
-          return
+      if (isDemoMode) {
+        // Local Demo Mode
+        if (mode === 'login') {
+          const result = localSignIn(email, password)
+          if (result.error) {
+            setError(result.error)
+          } else if (result.user) {
+            setLocalUser(result.user)
+            setCurrentView('dashboard')
+          }
+        } else if (mode === 'signup') {
+          if (!displayName.trim()) {
+            setError('Display name is required')
+            setLoading(false)
+            return
+          }
+          const result = localSignUp(email, password, displayName)
+          if (result.error) {
+            setError(result.error)
+          } else if (result.user) {
+            setLocalUser(result.user)
+            setCurrentView('dashboard')
+          }
+        } else if (mode === 'reset') {
+          const result = localResetPassword(email)
+          if (result.error) {
+            setError(result.error)
+          } else {
+            setResetSent(true)
+          }
         }
-        await signUpWithEmail(email, password)
-        setCurrentView('dashboard')
-      } else if (mode === 'reset') {
-        await resetPassword(email)
-        setResetSent(true)
+      } else {
+        // Firebase Live Mode
+        if (mode === 'login') {
+          await signInWithEmail(email, password)
+          setCurrentView('dashboard')
+        } else if (mode === 'signup') {
+          if (!displayName.trim()) {
+            setError('Display name is required')
+            setLoading(false)
+            return
+          }
+          await signUpWithEmail(email, password)
+          setCurrentView('dashboard')
+        } else if (mode === 'reset') {
+          await resetPassword(email)
+          setResetSent(true)
+        }
       }
     } catch (err: unknown) {
       const firebaseError = err as { code?: string; message?: string }
@@ -86,6 +134,9 @@ export default function LoginView() {
         case 'auth/too-many-requests':
           setError('Too many attempts. Please try again later.')
           break
+        case 'auth/api-key-not-valid':
+          setError('Firebase API key is invalid. Please check your configuration.')
+          break
         default:
           setError(firebaseError.message || 'Authentication failed. Please try again.')
       }
@@ -95,6 +146,10 @@ export default function LoginView() {
   }
 
   const handleGoogleSignIn = async () => {
+    if (isDemoMode) {
+      setError('Google Sign-In requires Firebase configuration. See setup instructions below.')
+      return
+    }
     setError('')
     setLoading(true)
     try {
@@ -105,6 +160,16 @@ export default function LoginView() {
       setError(firebaseError.message || 'Google sign-in failed')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDemoFounderLogin = () => {
+    const founderEmail = 'malatjimaphalle1@gmail.com'
+    const founderPassword = 'Freedom2025!'
+    const result = localSignIn(founderEmail, founderPassword)
+    if (result.user) {
+      setLocalUser(result.user)
+      setCurrentView('dashboard')
     }
   }
 
@@ -160,7 +225,27 @@ export default function LoginView() {
             ))}
           </div>
 
-          <div className="mt-8 p-4 rounded-lg border border-fw-gold/20 bg-fw-gold/5 max-w-sm mx-auto">
+          {/* Connection Mode Indicator */}
+          <div className={`mt-6 p-3 rounded-lg border max-w-sm mx-auto ${
+            isDemoMode
+              ? 'border-fw-gold/30 bg-fw-gold/5'
+              : 'border-fw-green/30 bg-fw-green/5'
+          }`}>
+            <div className="flex items-center gap-2 justify-center">
+              {isDemoMode ? (
+                <WifiOff className="w-3.5 h-3.5 text-fw-gold" />
+              ) : (
+                <Wifi className="w-3.5 h-3.5 text-fw-green" />
+              )}
+              <span className={`text-[10px] font-mono tracking-widest uppercase ${
+                isDemoMode ? 'text-fw-gold' : 'text-fw-green'
+              }`}>
+                {isDemoMode ? 'Demo Mode — Local Auth' : 'Live Mode — Firebase Connected'}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 rounded-lg border border-fw-gold/20 bg-fw-gold/5 max-w-sm mx-auto">
             <p className="text-[10px] font-mono tracking-widest uppercase text-fw-gold mb-1">
               Sovereign Manifest
             </p>
@@ -180,7 +265,7 @@ export default function LoginView() {
           className="w-full max-w-md"
         >
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8">
+          <div className="lg:hidden flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-lg bg-fw-accent/10 flex items-center justify-center">
               <Zap className="w-5 h-5 text-fw-accent" />
             </div>
@@ -189,6 +274,40 @@ export default function LoginView() {
               <p className="text-[9px] text-fw-dim font-mono tracking-wider">ECOSYSTEM v2.0</p>
             </div>
           </div>
+
+          {/* Demo Mode Banner */}
+          {isDemoMode && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 rounded-lg border border-fw-gold/30 bg-fw-gold/5"
+            >
+              <div className="flex items-start gap-3">
+                <WifiOff className="w-4 h-4 text-fw-gold flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold tracking-wider uppercase text-fw-gold">
+                    Demo Mode Active
+                  </p>
+                  <p className="text-[10px] text-fw-dim font-mono mt-1 leading-relaxed">
+                    Firebase credentials not configured. Using local authentication.
+                    Data is stored in your browser only.
+                  </p>
+                </div>
+              </div>
+              {/* Quick Founder Login */}
+              <button
+                type="button"
+                onClick={handleDemoFounderLogin}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-fw-gold/10 border border-fw-gold/30 text-fw-gold text-xs font-mono tracking-wider uppercase hover:bg-fw-gold/20 transition-colors"
+              >
+                <Crown className="w-3.5 h-3.5" />
+                Quick Login — Founder Access
+              </button>
+              <p className="text-[9px] text-fw-dim font-mono mt-2 text-center">
+                Founder: malatjimaphalle1@gmail.com • Password: Freedom2025!
+              </p>
+            </motion.div>
+          )}
 
           <AnimatePresence mode="wait">
             <motion.div
@@ -232,14 +351,19 @@ export default function LoginView() {
                   className="flex items-center gap-2 p-3 rounded-lg border border-fw-green/30 bg-fw-green/5 mb-6"
                 >
                   <Shield className="w-4 h-4 text-fw-green flex-shrink-0" />
-                  <p className="text-xs text-fw-green font-mono">
-                    Password reset link sent to {email}. Check your inbox.
-                  </p>
+                  <div>
+                    <p className="text-xs text-fw-green font-mono">
+                      {isDemoMode
+                        ? 'Password reset simulated (demo mode).'
+                        : `Password reset link sent to ${email}. Check your inbox.`
+                      }
+                    </p>
+                  </div>
                 </motion.div>
               )}
 
-              {/* Google Sign-In */}
-              {mode !== 'reset' && (
+              {/* Google Sign-In — only show in Firebase mode */}
+              {!isDemoMode && mode !== 'reset' && (
                 <>
                   <Button
                     type="button"
@@ -433,6 +557,30 @@ export default function LoginView() {
               )}
             </motion.div>
           </AnimatePresence>
+
+          {/* Firebase Setup Instructions (only in demo mode) */}
+          {isDemoMode && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="mt-8 p-4 rounded-lg border border-fw-border bg-fw-bg"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Info className="w-3.5 h-3.5 text-fw-accent" />
+                <span className="text-[10px] font-mono tracking-widest uppercase text-fw-accent">
+                  Connect Firebase for Live Mode
+                </span>
+              </div>
+              <div className="space-y-1.5 text-[10px] text-fw-dim font-mono leading-relaxed">
+                <p>1. Create a project at <span className="text-fw-accent">console.firebase.google.com</span></p>
+                <p>2. Enable Authentication (Email/Password + Google)</p>
+                <p>3. Enable Cloud Firestore</p>
+                <p>4. Enable Storage</p>
+                <p>5. Add your web app config to <span className="text-fw-accent">.env.local</span></p>
+              </div>
+            </motion.div>
+          )}
         </motion.div>
       </div>
     </div>

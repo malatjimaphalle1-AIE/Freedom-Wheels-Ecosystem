@@ -56,7 +56,8 @@ import ReferralsView from '@/components/freedom/ReferralsView'
 import KnowledgeBaseView from '@/components/freedom/KnowledgeBaseView'
 import SettingsView from '@/components/freedom/SettingsView'
 import ProfileView from '@/components/freedom/ProfileView'
-import { signOutUser } from '@/lib/firebase-auth'
+import { signOutUser, isFirebaseConfigured } from '@/lib/firebase-auth'
+import { localSignOut } from '@/lib/local-auth'
 
 interface NavItem {
   view: ViewType
@@ -147,7 +148,7 @@ export default function Home() {
     setSidebarOpen,
   } = useFreedomStore()
 
-  const { user, profile, loading, isAuthenticated, isFounderUser } = useAuth()
+  const { user, profile, loading, isAuthenticated, isFounderUser, isDemoMode, localUser, setLocalUser } = useAuth()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
@@ -156,7 +157,12 @@ export default function Home() {
   const handleSignOut = async () => {
     setLoggingOut(true)
     try {
-      await signOutUser()
+      if (isDemoMode) {
+        localSignOut()
+        setLocalUser(null)
+      } else {
+        await signOutUser()
+      }
       setCurrentView('landing')
     } catch (error) {
       console.error('Error signing out:', error)

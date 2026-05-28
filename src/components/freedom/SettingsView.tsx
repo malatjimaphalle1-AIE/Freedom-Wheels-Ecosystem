@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { useAuth } from '@/components/freedom/AuthProvider'
 import { updateUserProfile, uploadProfilePhoto, changeUserPassword } from '@/lib/firebase-auth'
+import { localUpdateProfile, localUploadProfilePhoto, localChangePassword } from '@/lib/local-auth'
 import { useToast } from '@/hooks/use-toast'
 import {
   Key,
@@ -32,7 +33,7 @@ import {
 import { useState, useRef, useEffect } from 'react'
 
 export default function SettingsView() {
-  const { profile, isFounderUser, refreshProfile } = useAuth()
+  const { profile, isFounderUser, isDemoMode, refreshProfile } = useAuth()
   const { toast } = useToast()
   const photoInputRef = useRef<HTMLInputElement>(null)
 
@@ -85,14 +86,13 @@ export default function SettingsView() {
   const handleSaveProfile = async () => {
     setSaving(true)
     try {
-      await updateUserProfile(profile.uid, {
-        displayName,
-        phone,
-        location,
-        website,
-        bio,
-      })
-      await refreshProfile()
+      if (isDemoMode) {
+        localUpdateProfile(profile.uid, { displayName, phone, location, website, bio })
+        await refreshProfile()
+      } else {
+        await updateUserProfile(profile.uid, { displayName, phone, location, website, bio })
+        await refreshProfile()
+      }
       toast({
         title: 'Profile Updated',
         description: 'Your profile settings have been saved',
@@ -112,10 +112,13 @@ export default function SettingsView() {
   const handleSaveApiKeys = async () => {
     setSaving(true)
     try {
-      await updateUserProfile(profile.uid, {
-        apiKeys: { gemini: geminiKey, wise: wiseKey },
-      })
-      await refreshProfile()
+      if (isDemoMode) {
+        localUpdateProfile(profile.uid, { apiKeys: { gemini: geminiKey, wise: wiseKey } })
+        await refreshProfile()
+      } else {
+        await updateUserProfile(profile.uid, { apiKeys: { gemini: geminiKey, wise: wiseKey } })
+        await refreshProfile()
+      }
       toast({
         title: 'API Keys Saved',
         description: 'Your API keys have been updated securely',
@@ -135,8 +138,13 @@ export default function SettingsView() {
   const handleSaveNotifications = async () => {
     setSaving(true)
     try {
-      await updateUserProfile(profile.uid, { notifications })
-      await refreshProfile()
+      if (isDemoMode) {
+        localUpdateProfile(profile.uid, { notifications })
+        await refreshProfile()
+      } else {
+        await updateUserProfile(profile.uid, { notifications })
+        await refreshProfile()
+      }
       toast({
         title: 'Notifications Updated',
         description: 'Your notification preferences have been saved',
@@ -164,8 +172,13 @@ export default function SettingsView() {
 
     setUploadingPhoto(true)
     try {
-      await uploadProfilePhoto(profile.uid, file)
-      await refreshProfile()
+      if (isDemoMode) {
+        await localUploadProfilePhoto(profile.uid, file)
+        await refreshProfile()
+      } else {
+        await uploadProfilePhoto(profile.uid, file)
+        await refreshProfile()
+      }
       toast({ title: 'Photo Updated', description: 'Profile photo updated successfully' })
     } catch (error) {
       console.error('Error uploading photo:', error)
@@ -187,11 +200,23 @@ export default function SettingsView() {
 
     setChangingPassword(true)
     try {
-      await changeUserPassword(oldPassword, newPassword)
-      setOldPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      toast({ title: 'Password Changed', description: 'Your password has been updated successfully' })
+      if (isDemoMode) {
+        const result = localChangePassword(profile.uid, oldPassword, newPassword)
+        if (result.error) {
+          toast({ title: 'Change Failed', description: result.error, variant: 'destructive' })
+        } else {
+          setOldPassword('')
+          setNewPassword('')
+          setConfirmPassword('')
+          toast({ title: 'Password Changed', description: 'Your password has been updated successfully' })
+        }
+      } else {
+        await changeUserPassword(oldPassword, newPassword)
+        setOldPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+        toast({ title: 'Password Changed', description: 'Your password has been updated successfully' })
+      }
     } catch (error) {
       console.error('Error changing password:', error)
       toast({ title: 'Change Failed', description: 'Failed to change password. Verify your current password.', variant: 'destructive' })

@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
-import { getAuth, connectAuthEmulator } from 'firebase/auth'
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
-import { getStorage, connectStorageEmulator } from 'firebase/storage'
+import { getAuth } from 'firebase/auth'
+import { getFirestore } from 'firebase/firestore'
+import { getStorage } from 'firebase/storage'
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,14 +13,41 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
-// Initialize Firebase (prevent duplicate initialization)
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+// Check if Firebase credentials are valid (not placeholder values)
+function isValidFirebaseConfig(): boolean {
+  const apiKey = firebaseConfig.apiKey
+  if (!apiKey) return false
+  // Detect placeholder / demo keys
+  if (apiKey.startsWith('AIzaSyDemo') || apiKey.includes('Replace-With') || apiKey.includes('YOUR_')) return false
+  if (apiKey === 'undefined' || apiKey.length < 20) return false
+  // Check project ID is also valid
+  const projectId = firebaseConfig.projectId
+  if (!projectId || projectId === 'undefined' || projectId.includes('Replace-With')) return false
+  return true
+}
 
-// Initialize services
-export const auth = getAuth(app)
-export const db = getFirestore(app)
-export const storage = getStorage(app)
+export const isFirebaseConfigured = isValidFirebaseConfig()
 
+// Only initialize Firebase if credentials are valid
+let app: ReturnType<typeof initializeApp> | null = null
+let authModule: ReturnType<typeof getAuth> | null = null
+let dbModule: ReturnType<typeof getFirestore> | null = null
+let storageModule: ReturnType<typeof getStorage> | null = null
+
+if (isFirebaseConfigured) {
+  try {
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+    authModule = getAuth(app)
+    dbModule = getFirestore(app)
+    storageModule = getStorage(app)
+  } catch (error) {
+    console.error('[FIREBASE] Initialization failed:', error)
+  }
+}
+
+export const auth = authModule
+export const db = dbModule
+export const storage = storageModule
 export default app
 
 // Founder email constant
