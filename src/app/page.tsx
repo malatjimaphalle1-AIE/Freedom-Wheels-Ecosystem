@@ -148,7 +148,7 @@ export default function Home() {
     setSidebarOpen,
   } = useFreedomStore()
 
-  const { user, profile, loading, isAuthenticated, isFounderUser, isDemoMode, localUser, setLocalUser } = useAuth()
+  const { user, profile, loading, isAuthenticated, isFounderUser, isDemoMode, localUser, setLocalUser, mounted } = useAuth()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
@@ -171,8 +171,8 @@ export default function Home() {
     }
   }
 
-  // Loading state
-  if (loading) {
+  // Loading state (also wait for client mount to avoid hydration mismatch)
+  if (loading || !mounted) {
     return (
       <div className="flex h-screen bg-fw-bg items-center justify-center">
         <div className="flex flex-col items-center gap-4">

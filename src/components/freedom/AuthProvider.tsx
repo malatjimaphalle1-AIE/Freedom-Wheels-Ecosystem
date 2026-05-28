@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useSyncExternalStore } from 'react'
 import { type User } from 'firebase/auth'
 import {
   onAuthChange,
@@ -12,9 +12,61 @@ import {
 import {
   localGetCurrentUser,
   localGetProfile,
+  localSignOut as localSignOutFn,
   type LocalUser,
 } from '@/lib/local-auth'
 import { isFounder, getRoleFromEmail, USER_ROLES, type UserRole } from '@/lib/firebase'
+
+// ---- useSyncExternalStore helpers for client-only state ----
+
+const emptySubscribe = () => () => {}
+
+// Returns false on server, true on client — no hydration mismatch
+function useHasMounted(): boolean {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  )
+}
+
+// Subscribe to localStorage changes for a given key
+function subscribeToLocalStorage(callback: () => void) {
+  window.addEventListener('storage', callback)
+  // Custom event for same-tab updates
+  window.addEventListener('fw-local-auth-change', callback)
+  return () => {
+    window.removeEventListener('storage', callback)
+    window.removeEventListener('fw-local-auth-change', callback)
+  }
+}
+
+// Read local user from localStorage via useSyncExternalStore (hydration-safe)
+function useLocalUser(): LocalUser | null {
+  return useSyncExternalStore(
+    subscribeToLocalStorage,
+    () => localGetCurrentUser(),
+    () => null // server always returns null
+  )
+}
+
+// Read local profile from localStorage via useSyncExternalStore (hydration-safe)
+function useLocalProfile(uid: string | null): ReturnType<typeof localGetProfile> {
+  return useSyncExternalStore(
+    subscribeToLocalStorage,
+    () => uid ? localGetProfile(uid) : null,
+    () => null // server always returns null
+  )
+}
+
+// Dispatch a custom event so same-tab useSyncExternalStore subscribers re-read
+function emitLocalAuthChange() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('fw-local-auth-change'))
+  }
+}
+
+// ---- Context ----
 
 interface AuthContextType {
   user: User | null
@@ -27,6 +79,7 @@ interface AuthContextType {
   isDemoMode: boolean
   localUser: LocalUser | null
   setLocalUser: (user: LocalUser | null) => void
+  mounted: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -40,52 +93,48 @@ const AuthContext = createContext<AuthContextType>({
   isDemoMode: true,
   localUser: null,
   setLocalUser: () => {},
+  mounted: false,
 })
 
-// Initialize local auth state from localStorage (client-side only)
-function getInitialLocalState() {
-  if (typeof window === 'undefined') return { localUser: null, profile: null }
-  const stored = localGetCurrentUser()
-  if (stored) {
-    const prof = localGetProfile(stored.uid)
-    return { localUser: stored, profile: prof }
-  }
-  return { localUser: null, profile: null }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // For demo mode, initialize directly from localStorage
-  const initialState = isFirebaseConfigured ? null : getInitialLocalState()
-
+  // Firebase auth state
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<FirestoreUserProfile | null>(initialState?.profile || null)
-  const [loading, setLoading] = useState(isFirebaseConfigured) // Firebase mode needs to check auth first
-  const [localUser, setLocalUserState] = useState<LocalUser | null>(initialState?.localUser || null)
+  const [firebaseProfile, setFirebaseProfile] = useState<FirestoreUserProfile | null>(null)
+  const [loading, setLoading] = useState(isFirebaseConfigured)
 
-  // isDemoMode is derived from isFirebaseConfigured
+  // Local auth state via useSyncExternalStore (hydration-safe)
+  const mounted = useHasMounted()
+  const localUser = useLocalUser()
+  const localProf = useLocalProfile(localUser?.uid ?? null)
+
+  // isDemoMode is derived from isFirebaseConfigured (static, same on server & client)
   const isDemoMode = !isFirebaseConfigured
 
-  const handleSetLocalUser = useCallback((newUser: LocalUser | null) => {
-    setLocalUserState(newUser)
+  // Profile: use Firebase profile in live mode, local profile in demo mode
+  const profile = isFirebaseConfigured ? firebaseProfile : localProf
+
+  const setLocalUser = useCallback((newUser: LocalUser | null) => {
+    // When setting local user, update localStorage then emit change event
+    // so useSyncExternalStore re-reads automatically
     if (newUser) {
-      const prof = localGetProfile(newUser.uid)
-      if (prof) setProfile(prof)
+      localStorage.setItem('fw_current_user', JSON.stringify(newUser))
     } else {
-      setProfile(null)
+      localStorage.removeItem('fw_current_user')
     }
+    emitLocalAuthChange()
   }, [])
 
   const refreshProfile = useCallback(async () => {
     if (isFirebaseConfigured && user) {
       const prof = await getUserProfile(user.uid)
-      if (prof) setProfile(prof)
-    } else if (localUser) {
-      const prof = localGetProfile(localUser.uid)
-      if (prof) setProfile(prof)
+      if (prof) setFirebaseProfile(prof)
     }
-  }, [user, localUser])
+    // For demo mode, useSyncExternalStore auto-reads from localStorage
+    // Just emit a change event to trigger re-read
+    emitLocalAuthChange()
+  }, [user])
 
-  // Only subscribe to Firebase auth changes (not needed in demo mode)
+  // Subscribe to Firebase auth changes
   useEffect(() => {
     if (!isFirebaseConfigured) return
 
@@ -101,14 +150,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (founderStatus && !prof.isFounder) {
             prof = await createUserProfile(firebaseUser)
           }
-          setProfile(prof)
+          setFirebaseProfile(prof)
         } catch (error) {
           console.error('Error loading user profile:', error)
           const fallbackProfile = await createUserProfile(firebaseUser)
-          setProfile(fallbackProfile)
+          setFirebaseProfile(fallbackProfile)
         }
       } else {
-        setProfile(null)
+        setFirebaseProfile(null)
       }
       setLoading(false)
     })
@@ -130,8 +179,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshProfile,
     isDemoMode,
     localUser,
-    setLocalUser: handleSetLocalUser,
-  }), [user, profile, loading, isAuthenticated, founderStatus, role, refreshProfile, isDemoMode, localUser, handleSetLocalUser])
+    setLocalUser,
+    mounted,
+  }), [user, profile, loading, isAuthenticated, founderStatus, role, refreshProfile, isDemoMode, localUser, setLocalUser, mounted])
 
   return (
     <AuthContext.Provider value={contextValue}>

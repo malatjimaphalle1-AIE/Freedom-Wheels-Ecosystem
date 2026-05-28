@@ -55,7 +55,7 @@ const steps = [
 
 export default function LandingView() {
   const setCurrentView = useFreedomStore((s) => s.setCurrentView)
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, mounted } = useAuth()
 
   const handleEnterEcosystem = () => {
     if (isAuthenticated) {
@@ -64,6 +64,10 @@ export default function LandingView() {
       setCurrentView('login')
     }
   }
+
+  // Use a stable value during SSR to prevent hydration mismatch
+  // After mounting, use the real auth state
+  const authenticated = mounted ? isAuthenticated : false
 
   return (
     <div className="min-h-screen bg-fw-bg text-fw-text">
@@ -115,7 +119,7 @@ export default function LandingView() {
               onClick={handleEnterEcosystem}
               className="group flex items-center gap-2 px-8 py-4 bg-fw-accent text-fw-bg font-bold text-sm tracking-widest uppercase rounded-lg fw-glow-strong hover:scale-105 transition-transform"
             >
-              {isAuthenticated ? 'Launch Your First Income Engine' : 'Sign In to Get Started'}
+              {authenticated ? 'Launch Your First Income Engine' : 'Sign In to Get Started'}
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
             <button
@@ -245,7 +249,7 @@ export default function LandingView() {
             onClick={handleEnterEcosystem}
             className="group flex items-center gap-2 px-10 py-5 bg-fw-gold text-fw-bg font-bold text-sm tracking-widest uppercase rounded-lg fw-glow-gold hover:scale-105 transition-transform mx-auto"
           >
-            {isAuthenticated ? 'Enter the Ecosystem' : 'Join the Ecosystem'}
+            {authenticated ? 'Enter the Ecosystem' : 'Join the Ecosystem'}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </motion.div>
