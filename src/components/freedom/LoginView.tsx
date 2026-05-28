@@ -37,9 +37,63 @@ import {
   Wifi,
   WifiOff,
   Info,
+  ClipboardPaste,
+  CheckCircle2,
+  XCircle,
+  Flame,
 } from 'lucide-react'
 
 type AuthMode = 'login' | 'signup' | 'reset'
+
+// Parse Firebase config from paste — handles both JSON and JS object formats
+function parseFirebaseConfig(input: string): Record<string, string> | null {
+  const trimmed = input.trim()
+
+  // Try direct JSON parse first
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (parsed.apiKey && parsed.projectId) return parsed
+  } catch {
+    // Not JSON, try JS object format
+  }
+
+  // Try to extract JS object: const firebaseConfig = { ... } or var firebaseConfig = { ... }
+  try {
+    // Remove variable declaration
+    let cleaned = trimmed
+      .replace(/^(const|let|var)\s+\w+\s*=\s*/, '')
+      .replace(/;\s*$/, '')
+      .trim()
+
+    // Convert unquoted keys to quoted keys: apiKey: -> "apiKey":
+    cleaned = cleaned.replace(/(\w+)\s*:/g, '"$1":')
+
+    // Handle single-quoted values -> double-quoted
+    cleaned = cleaned.replace(/'([^']*)'/g, '"$1"')
+
+    const parsed = JSON.parse(cleaned)
+    if (parsed.apiKey && parsed.projectId) return parsed
+  } catch {
+    // Still not parseable
+  }
+
+  // Try key-value extraction line by line
+  try {
+    const result: Record<string, string> = {}
+    const lines = trimmed.split('\n')
+    for (const line of lines) {
+      const match = line.match(/(\w+)\s*:\s*["']([^"']+)["']/)
+      if (match) {
+        result[match[1]] = match[2]
+      }
+    }
+    if (result.apiKey && result.projectId) return result
+  } catch {
+    // Fallback failed
+  }
+
+  return null
+}
 
 export default function LoginView() {
   const [mode, setMode] = useState<AuthMode>('login')
@@ -51,8 +105,70 @@ export default function LoginView() {
   const [error, setError] = useState('')
   const [resetSent, setResetSent] = useState(false)
 
+  // Firebase config paster state
+  const [showConfigPaster, setShowConfigPaster] = useState(false)
+  const [configInput, setConfigInput] = useState('')
+  const [configStatus, setConfigStatus] = useState<'idle' | 'parsing' | 'valid' | 'invalid' | 'saving' | 'saved' | 'error'>('idle')
+  const [configError, setConfigError] = useState('')
+  const [parsedPreview, setParsedPreview] = useState<Record<string, string> | null>(null)
+
   const setCurrentView = useFreedomStore((s) => s.setCurrentView)
   const { isDemoMode, setLocalUser } = useAuth()
+
+  const handleConfigInput = (value: string) => {
+    setConfigInput(value)
+    setConfigStatus('idle')
+    setParsedPreview(null)
+    setConfigError('')
+
+    if (value.trim().length > 20) {
+      const parsed = parseFirebaseConfig(value)
+      if (parsed) {
+        setParsedPreview(parsed)
+        setConfigStatus('valid')
+      } else if (value.trim().length > 50) {
+        setConfigStatus('invalid')
+        setConfigError('Could not parse Firebase config. Make sure you copied the full config object from Firebase Console.')
+      }
+    }
+  }
+
+  const handleSaveConfig = async () => {
+    if (!parsedPreview) return
+
+    setConfigStatus('saving')
+    try {
+      const res = await fetch('/api/firebase-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: parsedPreview }),
+      })
+      const data = await res.json()
+
+      if (res.ok && data.success) {
+        setConfigStatus('saved')
+        // Auto-reload after a brief delay so the user sees the success message
+        setTimeout(() => {
+          window.location.reload()
+        }, 2000)
+      } else {
+        setConfigStatus('error')
+        setConfigError(data.error || 'Failed to save configuration')
+      }
+    } catch {
+      setConfigStatus('error')
+      setConfigError('Network error. Please try again.')
+    }
+  }
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      handleConfigInput(text)
+    } catch {
+      setConfigError('Could not read clipboard. Please paste manually with Ctrl+V / Cmd+V.')
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -147,7 +263,7 @@ export default function LoginView() {
 
   const handleGoogleSignIn = async () => {
     if (isDemoMode) {
-      setError('Google Sign-In requires Firebase configuration. See setup instructions below.')
+      setError('Google Sign-In requires Firebase configuration. Use the config paster below.')
       return
     }
     setError('')
@@ -558,26 +674,218 @@ export default function LoginView() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Firebase Setup Instructions (only in demo mode) */}
+          {/* Firebase Config Paster (only in demo mode) */}
           {isDemoMode && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="mt-8 p-4 rounded-lg border border-fw-border bg-fw-bg"
+              className="mt-8"
             >
-              <div className="flex items-center gap-2 mb-3">
-                <Info className="w-3.5 h-3.5 text-fw-accent" />
-                <span className="text-[10px] font-mono tracking-widest uppercase text-fw-accent">
-                  Connect Firebase for Live Mode
+              {/* Toggle button */}
+              <button
+                type="button"
+                onClick={() => setShowConfigPaster(!showConfigPaster)}
+                className="w-full p-4 rounded-lg border border-fw-accent/30 bg-fw-accent/5 hover:bg-fw-accent/10 transition-colors flex items-center gap-3"
+              >
+                <Flame className="w-4 h-4 text-fw-accent flex-shrink-0" />
+                <div className="text-left flex-1">
+                  <span className="text-xs font-bold tracking-wider uppercase text-fw-accent block">
+                    Connect Firebase — Enable Live Mode
+                  </span>
+                  <span className="text-[10px] text-fw-dim font-mono">
+                    Paste your Firebase config from the Console to go live
+                  </span>
+                </div>
+                <motion.span
+                  animate={{ rotate: showConfigPaster ? 180 : 0 }}
+                  className="text-fw-accent text-lg"
+                >
+                  ▾
+                </motion.span>
+              </button>
+
+              {/* Config paster panel */}
+              <AnimatePresence>
+                {showConfigPaster && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-3 p-4 rounded-lg border border-fw-border bg-fw-surface space-y-4">
+                      {/* Step instructions */}
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-mono tracking-widest uppercase text-fw-accent">
+                          How to get your Firebase Config
+                        </p>
+                        <ol className="space-y-1 text-[10px] text-fw-dim font-mono leading-relaxed list-decimal list-inside">
+                          <li>Go to <span className="text-fw-accent">console.firebase.google.com</span></li>
+                          <li>Select your project (or create one)</li>
+                          <li>Click the <span className="text-fw-accent">⚙ gear icon → Project Settings</span></li>
+                          <li>Scroll to <span className="text-fw-accent">Your apps → Web app</span></li>
+                          <li>Copy the <span className="text-fw-accent">firebaseConfig</span> object</li>
+                          <li>Paste it below 👇</li>
+                        </ol>
+                      </div>
+
+                      <Separator className="bg-fw-border" />
+
+                      {/* Paste area */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-[10px] font-mono tracking-widest uppercase text-fw-dim">
+                            Paste Firebase Config
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handlePasteFromClipboard}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-fw-border bg-fw-bg hover:bg-fw-surface text-[10px] font-mono text-fw-dim hover:text-fw-accent transition-colors"
+                          >
+                            <ClipboardPaste className="w-3 h-3" />
+                            Paste from Clipboard
+                          </button>
+                        </div>
+
+                        <textarea
+                          value={configInput}
+                          onChange={(e) => handleConfigInput(e.target.value)}
+                          placeholder={`Paste your Firebase config here. Accepted formats:\n\nJSON:\n{\n  "apiKey": "AIzaSy...",\n  "authDomain": "your-project.firebaseapp.com",\n  "projectId": "your-project-id",\n  "storageBucket": "your-project.appspot.com",\n  "messagingSenderId": "123456789",\n  "appId": "1:123:web:abc123"\n}\n\nOr JS Object:\nconst firebaseConfig = {\n  apiKey: "AIzaSy...",\n  ...\n};`}
+                          className="w-full h-44 p-3 rounded-lg border border-fw-border bg-fw-bg text-xs font-mono text-fw-text placeholder:text-fw-dim/50 focus:border-fw-accent/50 focus:outline-none resize-y"
+                          spellCheck={false}
+                        />
+
+                        {/* Parse status */}
+                        {configStatus === 'valid' && parsedPreview && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-2 p-3 rounded-lg border border-fw-green/30 bg-fw-green/5"
+                          >
+                            <div className="flex items-center gap-2 mb-2">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-fw-green" />
+                              <span className="text-[10px] font-mono tracking-widest uppercase text-fw-green">
+                                Config Parsed Successfully
+                              </span>
+                            </div>
+                            <div className="space-y-1 text-[10px] font-mono">
+                              {Object.entries(parsedPreview).map(([key, value]) => (
+                                <div key={key} className="flex gap-2">
+                                  <span className="text-fw-dim min-w-[120px]">{key}:</span>
+                                  <span className="text-fw-text truncate">
+                                    {key === 'apiKey' || key === 'messagingSenderId' || key === 'appId'
+                                      ? value.slice(0, 8) + '••••••' + value.slice(-4)
+                                      : value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+
+                        {configStatus === 'invalid' && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-2 p-3 rounded-lg border border-fw-red/30 bg-fw-red/5 flex items-center gap-2"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-fw-red flex-shrink-0" />
+                            <p className="text-[10px] text-fw-red font-mono">{configError}</p>
+                          </motion.div>
+                        )}
+
+                        {configStatus === 'error' && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-2 p-3 rounded-lg border border-fw-red/30 bg-fw-red/5 flex items-center gap-2"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-fw-red flex-shrink-0" />
+                            <p className="text-[10px] text-fw-red font-mono">{configError}</p>
+                          </motion.div>
+                        )}
+
+                        {configStatus === 'saved' && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-2 p-3 rounded-lg border border-fw-green/30 bg-fw-green/5 flex items-center gap-2"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-fw-green flex-shrink-0" />
+                            <div>
+                              <p className="text-[10px] text-fw-green font-mono font-bold">
+                                Configuration Saved! Reloading...
+                              </p>
+                              <p className="text-[9px] text-fw-dim font-mono">
+                                The app will reload to activate Firebase Live Mode.
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+
+                      {/* Save button */}
+                      <Button
+                        type="button"
+                        onClick={handleSaveConfig}
+                        disabled={configStatus !== 'valid' || configStatus === 'saving' || configStatus === 'saved'}
+                        className="w-full h-10 bg-fw-accent text-fw-bg font-bold text-xs tracking-widest uppercase hover:bg-fw-accent/90 fw-glow"
+                      >
+                        {configStatus === 'saving' ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
+                            Saving Configuration...
+                          </>
+                        ) : configStatus === 'saved' ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-2" />
+                            Saved — Reloading...
+                          </>
+                        ) : (
+                          <>
+                            <Flame className="w-3.5 h-3.5 mr-2" />
+                            Save & Activate Firebase
+                          </>
+                        )}
+                      </Button>
+
+                      {/* Security note */}
+                      <p className="text-[9px] text-fw-dim font-mono text-center leading-relaxed">
+                        Your config is saved locally to <span className="text-fw-accent">.env.local</span>.
+                        It never leaves your device. Firebase keys are safe to use client-side.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+          {/* Firebase setup steps (only in demo mode) — kept as a quick reference */}
+          {isDemoMode && !showConfigPaster && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="mt-4 p-3 rounded-lg border border-fw-border bg-fw-bg"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Info className="w-3 h-3 text-fw-dim" />
+                <span className="text-[9px] font-mono tracking-widest uppercase text-fw-dim">
+                  Firebase Services Needed
                 </span>
               </div>
-              <div className="space-y-1.5 text-[10px] text-fw-dim font-mono leading-relaxed">
-                <p>1. Create a project at <span className="text-fw-accent">console.firebase.google.com</span></p>
-                <p>2. Enable Authentication (Email/Password + Google)</p>
-                <p>3. Enable Cloud Firestore</p>
-                <p>4. Enable Storage</p>
-                <p>5. Add your web app config to <span className="text-fw-accent">.env.local</span></p>
+              <div className="flex flex-wrap gap-1.5">
+                {['Authentication', 'Cloud Firestore', 'Storage'].map((service) => (
+                  <span
+                    key={service}
+                    className="px-2 py-0.5 rounded text-[9px] font-mono border border-fw-border bg-fw-surface text-fw-dim"
+                  >
+                    {service}
+                  </span>
+                ))}
               </div>
             </motion.div>
           )}

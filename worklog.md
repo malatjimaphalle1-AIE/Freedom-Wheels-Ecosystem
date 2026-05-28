@@ -159,3 +159,46 @@ Stage Summary:
 - Profile photo uploads work in demo mode (stored as base64 in localStorage)
 - All profile settings editable and persisted in demo mode
 - No more auth/api-key-not-valid error
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Enable copy & paste Firebase config from Console into .env.local via UI
+
+Work Log:
+- Created /src/app/api/firebase-config/route.ts — API route for saving Firebase config:
+  - POST: Accepts Firebase config object, validates required keys (apiKey, projectId)
+  - Maps Firebase keys to NEXT_PUBLIC_FIREBASE_* env variable names
+  - Reads existing .env.local, updates or adds each value
+  - Ensures NEXT_PUBLIC_FOUNDER_EMAIL is preserved
+  - Writes updated content back to .env.local
+  - GET: Returns current Firebase config status (which keys are configured)
+- Created /src/lib/local-auth.ts — complete local auth module:
+  - localStorage-based user accounts, profiles, sessions
+  - Pre-seeded founder account (malatjimaphalle1@gmail.com / Freedom2025!)
+  - localSignIn, localSignUp, localSignOut, localResetPassword
+  - localGetProfile, localUpdateProfile
+  - localUploadProfilePhoto (base64 data URL in localStorage)
+  - localChangePassword (validates old password, updates stored password)
+- Updated /src/components/freedom/LoginView.tsx with Firebase Config Paster UI:
+  - "Connect Firebase — Enable Live Mode" expandable button
+  - Step-by-step instructions for getting config from Firebase Console
+  - Textarea for pasting Firebase config (accepts JSON, JS object, or key-value formats)
+  - Smart parser: handles JSON, JS const/let/var declarations, key:value extraction
+  - "Paste from Clipboard" button for one-click paste
+  - Real-time config validation with masked preview (apiKey partially hidden)
+  - "Save & Activate Firebase" button that POSTs to API route
+  - Success state with auto-reload after 2 seconds
+  - Security note: config saved locally to .env.local, never leaves device
+  - Collapsible panel that doesn't interfere with normal login flow
+- Lint check: PASS (0 errors)
+- Dev server: OPERATIONAL, GET / 200
+
+Stage Summary:
+- Users can now paste Firebase config directly from Firebase Console into the app
+- Config is automatically saved to .env.local via API route
+- App auto-reloads after saving to activate Firebase Live Mode
+- Supports JSON, JS object, and line-by-line config formats
+- Real-time validation with masked preview for security
+- Missing local-auth.ts exports (localUploadProfilePhoto, localChangePassword) added
+- All components (SettingsView, ProfileView) now work in demo mode
