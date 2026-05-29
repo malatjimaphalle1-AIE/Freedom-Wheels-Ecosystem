@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
+import { useEngineBus } from '@/lib/engine-bus'
 
 // ─── Types matching the WebSocket service ──────────────────────────────
 interface EngineMetric {
@@ -181,6 +182,10 @@ export default function LiveEnginesView() {
   const [totalRevenue, setTotalRevenue] = useState(0)
   const [activeCount, setActiveCount] = useState(0)
 
+  // Engine bus integration
+  const { events: busEvents, dispatch: busDispatch, pulses: busPulses } = useEngineBus()
+  const [reactionChain, setReactionChain] = useState<{ id: string; trigger: string; chain: string[]; timestamp: number }[]>([])
+
   // ─── WebSocket Connection ──────────────────────────────────────────
   useEffect(() => {
     let mounted = true
@@ -292,6 +297,83 @@ export default function LiveEnginesView() {
         }
         return cleaned
       })
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // ─── Merge engine bus events into live event feed ───────────────────
+  useEffect(() => {
+    if (busEvents.length === 0) return
+    const latest = busEvents[0]
+    if (!latest) return
+
+    // Convert engine bus event to LiveEvent format and add to feed
+    const categoryMap: Record<string, LiveEvent['type']> = {
+      revenue: 'revenue',
+      lead: 'lead',
+      referral: 'referral',
+      traffic: 'traffic',
+      ai: 'ai',
+      purchase: 'purchase',
+      system: 'system',
+      auth: 'system',
+    }
+    const liveEvent: LiveEvent = {
+      id: latest.id,
+      timestamp: latest.timestamp,
+      source: latest.source,
+      target: Array.isArray(latest.target) ? latest.target[0] || '' : latest.target || '',
+      type: categoryMap[latest.meta.category] || 'system',
+      message: `${latest.meta.icon} ${latest.meta.label}: ${latest.source} → ${Array.isArray(latest.target) ? latest.target.join(', ') : latest.target || 'broadcast'}`,
+      value: latest.meta.value,
+    }
+
+    setEvents((prev) => {
+      // Avoid duplicates
+      if (prev.some((e) => e.id === liveEvent.id)) return prev
+      return [liveEvent, ...prev].slice(0, 50)
+    })
+
+    // Add pulse for engine bus events
+    const targets = latest.target
+      ? Array.isArray(latest.target) ? latest.target : [latest.target]
+      : []
+    for (const t of targets) {
+      setPulseMap((prev) => ({ ...prev, [`${latest.source}->${t}`]: Date.now() }))
+    }
+
+    // Track reaction chains
+    const triggerEvent = latest.payload.triggeredBy as string | undefined
+    if (triggerEvent) {
+      setReactionChain((prev) => {
+        // Find existing chain for this trigger or create new
+        const existingIdx = prev.findIndex((c) => triggerEvent.startsWith(c.trigger) && Date.now() - c.timestamp < 5000)
+        if (existingIdx >= 0) {
+          const updated = [...prev]
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            chain: [...updated[existingIdx].chain, `${latest.meta.icon} ${latest.meta.label}`],
+          }
+          return updated
+        }
+        return [
+          { id: latest.id, trigger: triggerEvent, chain: [`${latest.meta.icon} ${latest.meta.label}`], timestamp: Date.now() },
+          ...prev,
+        ].slice(0, 20)
+      })
+    }
+  }, [busEvents])
+
+  // ─── Merge engine bus pulses into the pulse map ─────────────────────
+  useEffect(() => {
+    if (Object.keys(busPulses).length === 0) return
+    setPulseMap((prev) => ({ ...prev, ...busPulses }))
+  }, [busPulses])
+
+  // ─── Clean old reaction chains ─────────────────────────────────────
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setReactionChain((prev) => prev.filter((c) => Date.now() - c.timestamp < 10000))
     }, 5000)
     return () => clearInterval(interval)
   }, [])
@@ -599,6 +681,118 @@ export default function LiveEnginesView() {
               })}
             </svg>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Cross-Engine Reaction Chain ──────────────────────────────── */}
+      <Card className="bg-fw-surface border-fw-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs font-mono tracking-widest uppercase text-fw-dim flex items-center gap-2">
+            <Zap className="w-4 h-4 text-fw-gold" />
+            Cross-Engine Reaction Chain
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {reactionChain.length === 0 ? (
+            <div className="text-center py-6">
+              <Zap className="w-8 h-8 text-fw-dim/20 mx-auto mb-2" />
+              <p className="text-xs font-mono text-fw-dim">No reaction chains active</p>
+              <p className="text-[10px] text-fw-dim/60 mt-1">Trigger an event below to see cascading reactions</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-64 overflow-y-auto fw-scrollbar">
+              {reactionChain.map((chain) => (
+                <div
+                  key={chain.id + chain.timestamp}
+                  className="p-3 rounded-lg border border-fw-border bg-fw-bg/50"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge className="text-[8px] bg-fw-gold/10 text-fw-gold border border-fw-gold/30">
+                      TRIGGER
+                    </Badge>
+                    <span className="text-[10px] font-mono text-fw-gold font-bold tracking-widest uppercase">
+                      {chain.trigger}
+                    </span>
+                  </div>
+                  <div className="flex items-center flex-wrap gap-1">
+                    {chain.chain.map((step, i) => (
+                      <span key={i} className="flex items-center gap-1">
+                        {i > 0 && <ArrowRight className="w-3 h-3 text-fw-dim" />}
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-fw-surface border border-fw-border text-fw-text">
+                          {step}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Trigger Test Event Panel ─────────────────────────────────── */}
+      <Card className="bg-fw-surface border-fw-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs font-mono tracking-widest uppercase text-fw-dim flex items-center gap-2">
+            <Activity className="w-4 h-4 text-fw-accent" />
+            Trigger Test Event
+            <Badge className="text-[8px] bg-fw-accent/10 text-fw-accent border border-fw-accent/30 ml-2">
+              ENGINE BUS
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => {
+                busDispatch({ source: 'auth-engine', type: 'auth:login', target: ['wallet-engine', 'leaderboard-engine'], payload: { userId: 'test-user', email: 'test@freedomwheels.io' }, meta: {} })
+              }}
+              size="sm"
+              className="bg-fw-accent/10 text-fw-accent border border-fw-accent/30 hover:bg-fw-accent/20 font-mono text-[10px] tracking-wider"
+            >
+              🔐 Simulate Login
+            </Button>
+            <Button
+              onClick={() => {
+                busDispatch({ source: 'marketplace-engine', type: 'marketplace:purchase', target: ['wallet-engine', 'referral-engine'], payload: { amount: 149, items: [{ id: 'p1', name: 'AI Content Engine Pro' }] }, meta: { value: 149 } })
+              }}
+              size="sm"
+              className="bg-fw-green/10 text-fw-green border border-fw-green/30 hover:bg-fw-green/20 font-mono text-[10px] tracking-wider"
+            >
+              ✅ Simulate Purchase
+            </Button>
+            <Button
+              onClick={() => {
+                busDispatch({ source: 'wallet-engine', type: 'wallet:deposit', payload: { amount: 500 }, meta: { value: 500 } })
+              }}
+              size="sm"
+              className="bg-fw-gold/10 text-fw-gold border border-fw-gold/30 hover:bg-fw-gold/20 font-mono text-[10px] tracking-wider"
+            >
+              💰 Simulate Deposit
+            </Button>
+            <Button
+              onClick={() => {
+                busDispatch({ source: 'referral-engine', type: 'referral:signup', target: ['traffic-engine', 'wallet-engine'], payload: { referralCode: 'FW-TEST-2025' }, meta: {} })
+              }}
+              size="sm"
+              className="bg-fw-purple/10 text-fw-purple border border-fw-purple/30 hover:bg-fw-purple/20 font-mono text-[10px] tracking-wider"
+            >
+              🔗 Simulate Referral
+            </Button>
+            <Button
+              onClick={() => {
+                busDispatch({ source: 'ai-engine', type: 'ai:insight', target: 'content-engine', payload: { topic: 'Revenue optimization' }, meta: {} })
+              }}
+              size="sm"
+              className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 font-mono text-[10px] tracking-wider"
+            >
+              🤖 Simulate AI Query
+            </Button>
+          </div>
+          <p className="text-[9px] text-fw-dim font-mono mt-3 leading-relaxed">
+            Click a button to dispatch a cross-engine event. Auto-reaction rules will fire follow-up events, creating visible reaction chains above.
+          </p>
         </CardContent>
       </Card>
 

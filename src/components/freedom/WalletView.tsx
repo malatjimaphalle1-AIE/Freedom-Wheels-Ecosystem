@@ -50,6 +50,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useState, useEffect, useCallback } from 'react'
+import { useEngineBus } from '@/lib/engine-bus'
 
 // Types matching Prisma models
 interface WalletAsset {
@@ -130,6 +131,7 @@ interface CryptoDetails {
 export default function WalletView() {
   const { user, localUser, isDemoMode } = useAuth()
   const email = user?.email || localUser?.email || ''
+  const { dispatch } = useEngineBus()
 
   const [wallet, setWallet] = useState<WalletData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -168,6 +170,11 @@ export default function WalletView() {
       if (!res.ok) throw new Error('Failed to load wallet')
       const data = await res.json()
       setWallet(data.wallet)
+
+      // Dispatch balance update to engine bus
+      if (data.wallet) {
+        dispatch({ source: 'wallet-engine', type: 'wallet:balance_update', payload: { balance: data.wallet.balance } })
+      }
     } catch (err) {
       console.error('Wallet fetch error:', err)
       setError('Failed to load wallet data')
@@ -267,6 +274,9 @@ export default function WalletView() {
 
       setCreatedWithdrawal(data.withdrawal)
       setWithdrawStep('success')
+
+      // Dispatch engine bus events
+      dispatch({ source: 'wallet-engine', type: 'wallet:withdraw', payload: { amount: withdrawAmountNum }, meta: { value: withdrawAmountNum } })
 
       // Auto-complete the withdrawal after 3 seconds (simulate processing)
       setTimeout(async () => {

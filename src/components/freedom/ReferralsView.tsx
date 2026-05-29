@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Copy, Check, Share2, Users, Gift, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
+import { useEngineBus } from '@/lib/engine-bus'
 
 const referralCode = 'FW-MAPHALLE-2025'
 
@@ -33,11 +34,15 @@ const rewardTiers = [
 
 export default function ReferralsView() {
   const [copied, setCopied] = useState(false)
+  const { dispatch } = useEngineBus()
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralCode)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+
+    // Dispatch engine bus event for code generation
+    dispatch({ source: 'referral-engine', type: 'referral:code_generated', target: 'traffic-engine', payload: { code: referralCode }, meta: {} })
   }
 
   return (
@@ -81,6 +86,9 @@ export default function ReferralsView() {
                 variant="outline"
                 size="sm"
                 className="border-fw-accent/30 text-fw-accent hover:bg-fw-accent/10"
+                onClick={() => {
+                  dispatch({ source: 'referral-engine', type: 'referral:signup', target: ['traffic-engine', 'wallet-engine'], payload: { referralCode }, meta: {} })
+                }}
               >
                 <Share2 className="w-3 h-3 mr-2" />
                 Share Link
@@ -89,6 +97,9 @@ export default function ReferralsView() {
                 variant="outline"
                 size="sm"
                 className="border-fw-border text-fw-dim hover:text-fw-text"
+                onClick={() => {
+                  dispatch({ source: 'referral-engine', type: 'referral:signup', target: ['traffic-engine', 'wallet-engine'], payload: { referralCode }, meta: {} })
+                }}
               >
                 <Users className="w-3 h-3 mr-2" />
                 Invite Email

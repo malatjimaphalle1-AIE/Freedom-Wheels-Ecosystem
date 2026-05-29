@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useEngineBus } from '@/lib/engine-bus'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/components/freedom/AuthProvider'
 import { useFreedomStore } from '@/lib/freedom-store'
@@ -114,6 +115,7 @@ export default function LoginView() {
 
   const setCurrentView = useFreedomStore((s) => s.setCurrentView)
   const { isDemoMode, setLocalUser } = useAuth()
+  const { dispatch } = useEngineBus()
 
   const handleConfigInput = (value: string) => {
     setConfigInput(value)
@@ -184,6 +186,8 @@ export default function LoginView() {
             setError(result.error)
           } else if (result.user) {
             setLocalUser(result.user)
+            // Dispatch engine bus event for login
+            dispatch({ source: 'auth-engine', type: 'auth:login', target: ['wallet-engine', 'leaderboard-engine'], payload: { userId: result.user.id, email: result.user.email }, meta: {} })
             setCurrentView('dashboard')
           }
         } else if (mode === 'signup') {
@@ -197,6 +201,8 @@ export default function LoginView() {
             setError(result.error)
           } else if (result.user) {
             setLocalUser(result.user)
+            // Dispatch engine bus event for signup
+            dispatch({ source: 'auth-engine', type: 'auth:signup', target: ['wallet-engine', 'leaderboard-engine', 'referral-engine'], payload: { userId: result.user.id, email: result.user.email }, meta: {} })
             setCurrentView('dashboard')
           }
         } else if (mode === 'reset') {
@@ -211,6 +217,8 @@ export default function LoginView() {
         // Firebase Live Mode
         if (mode === 'login') {
           await signInWithEmail(email, password)
+          // Dispatch engine bus event for login
+          dispatch({ source: 'auth-engine', type: 'auth:login', target: ['wallet-engine', 'leaderboard-engine'], payload: { userId: email, email }, meta: {} })
           setCurrentView('dashboard')
         } else if (mode === 'signup') {
           if (!displayName.trim()) {
@@ -219,6 +227,8 @@ export default function LoginView() {
             return
           }
           await signUpWithEmail(email, password)
+          // Dispatch engine bus event for signup
+          dispatch({ source: 'auth-engine', type: 'auth:signup', target: ['wallet-engine', 'leaderboard-engine', 'referral-engine'], payload: { userId: email, email }, meta: {} })
           setCurrentView('dashboard')
         } else if (mode === 'reset') {
           await resetPassword(email)

@@ -36,6 +36,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { useState } from 'react'
+import { useEngineBus } from '@/lib/engine-bus'
 
 const categories = ['All', 'Engines', 'Templates', 'Data', 'AI Models', 'Plugins']
 
@@ -115,6 +116,7 @@ export default function MarketplaceView() {
 
   const { user, localUser } = useAuth()
   const email = user?.email || localUser?.email || ''
+  const { dispatch } = useEngineBus()
 
   const [activeCategory, setActiveCategory] = useState('All')
   const [aiDescriptions, setAiDescriptions] = useState<Record<string, string>>({})
@@ -167,6 +169,9 @@ export default function MarketplaceView() {
       category: product.category,
       badge: product.badge,
     })
+
+    // Dispatch engine bus event
+    dispatch({ source: 'marketplace-engine', type: 'marketplace:add_to_cart', target: 'ai-engine', payload: { itemId: product.id, itemName: product.name }, meta: { value: product.price } })
 
     // Visual feedback
     setJustAdded(product.id)
@@ -249,6 +254,10 @@ export default function MarketplaceView() {
       })
 
       setCheckoutStep('success')
+
+      // Dispatch engine bus event for purchase
+      dispatch({ source: 'marketplace-engine', type: 'marketplace:purchase', target: ['wallet-engine', 'referral-engine'], payload: { amount: cartTotal, items: cart.map((i) => ({ id: i.id, name: i.name, quantity: i.quantity })) }, meta: { value: cartTotal } })
+
       clearCart()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Checkout failed'
