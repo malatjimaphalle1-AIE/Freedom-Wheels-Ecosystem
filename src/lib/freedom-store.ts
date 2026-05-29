@@ -4,6 +4,7 @@ export type ViewType =
   | 'landing'
   | 'login'
   | 'dashboard'
+  | 'engines'
   | 'builder'
   | 'leads'
   | 'wallet'

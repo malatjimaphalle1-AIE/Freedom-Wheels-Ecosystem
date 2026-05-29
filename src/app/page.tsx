@@ -44,6 +44,7 @@ import { useState } from 'react'
 import LandingView from '@/components/freedom/LandingView'
 import LoginView from '@/components/freedom/LoginView'
 import DashboardView from '@/components/freedom/DashboardView'
+import LiveEnginesView from '@/components/freedom/LiveEnginesView'
 import EngineBuilderView from '@/components/freedom/EngineBuilderView'
 import LeadIntelligenceView from '@/components/freedom/LeadIntelligenceView'
 import WalletView from '@/components/freedom/WalletView'
@@ -69,6 +70,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { view: 'dashboard', label: 'Command Center', icon: LayoutDashboard, badge: '3' },
+  { view: 'engines', label: 'Live Engines', icon: Zap, badge: '8' },
   { view: 'builder', label: 'Engine Builder', icon: Cpu },
   { view: 'leads', label: 'Lead Intelligence', icon: Users, badge: '5' },
   { view: 'wallet', label: 'Wallet', icon: Wallet },
@@ -87,6 +89,7 @@ const viewLabels: Record<ViewType, string> = {
   landing: 'Landing',
   login: 'Sign In',
   dashboard: 'Command Center',
+  engines: 'Live Active Engines',
   builder: 'Engine Builder',
   leads: 'Lead Intelligence',
   wallet: 'Wallet',
@@ -109,6 +112,8 @@ function ViewRenderer({ view }: { view: ViewType }) {
       return <LoginView />
     case 'dashboard':
       return <DashboardView />
+    case 'engines':
+      return <LiveEnginesView />
     case 'builder':
       return <EngineBuilderView />
     case 'leads':

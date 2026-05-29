@@ -447,6 +447,56 @@ export default function DashboardView() {
         </Card>
       </div>
 
+      {/* LIVE ACTIVE ENGINES Banner */}
+      <Card
+        className="bg-fw-surface border-fw-accent/30 hover:border-fw-accent/50 transition-all cursor-pointer group relative overflow-hidden"
+        onClick={() => useFreedomStore.getState().setCurrentView('engines')}
+      >
+        <div className="absolute top-0 right-0 w-64 h-64 bg-fw-accent/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
+        <CardContent className="relative z-10 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-fw-accent/10 flex items-center justify-center fw-glow-strong">
+                <Zap className="w-6 h-6 text-fw-accent" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold tracking-widest uppercase">
+                    Live Active Engines
+                  </h3>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-fw-green animate-pulse" />
+                    <span className="text-[9px] font-mono text-fw-green tracking-widest">LIVE</span>
+                  </div>
+                </div>
+                <p className="text-xs text-fw-dim font-mono mt-0.5">
+                  Real-time cross-engine telemetry & interaction map
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-3">
+                <div className="text-center px-3 py-1 rounded border border-fw-border bg-fw-bg">
+                  <p className="text-[8px] font-mono text-fw-dim tracking-widest">ENGINES</p>
+                  <p className="text-sm font-bold font-mono text-fw-accent">8</p>
+                </div>
+                <div className="text-center px-3 py-1 rounded border border-fw-border bg-fw-bg">
+                  <p className="text-[8px] font-mono text-fw-dim tracking-widest">DATA FLOW</p>
+                  <p className="text-sm font-bold font-mono text-fw-green">369 u/s</p>
+                </div>
+                <div className="text-center px-3 py-1 rounded border border-fw-border bg-fw-bg">
+                  <p className="text-[8px] font-mono text-fw-dim tracking-widest">INTERACTIONS</p>
+                  <p className="text-sm font-bold font-mono text-fw-gold">12</p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-lg border border-fw-accent/30 flex items-center justify-center group-hover:bg-fw-accent/10 transition-colors">
+                <Zap className="w-4 h-4 text-fw-accent" />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Engine Status */}
       <Card className="bg-fw-surface border-fw-border">
         <CardHeader>
