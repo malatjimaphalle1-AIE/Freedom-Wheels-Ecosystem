@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { Progress } from '@/components/ui/progress'
+import { Textarea } from '@/components/ui/textarea'
 import {
   BookOpen,
   Search,
@@ -18,6 +20,8 @@ import {
   ArrowLeft,
   ArrowRight,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Bookmark,
   BookmarkCheck,
   Lightbulb,
@@ -41,8 +45,14 @@ import {
   CheckCircle,
   List,
   X,
+  ArrowUp,
+  Send,
+  MessageCircle,
+  Link as LinkIcon,
+  Map,
+  Check,
 } from 'lucide-react'
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useEngineBus } from '@/lib/engine-bus'
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -78,6 +88,20 @@ interface VideoTutorial {
   chapters: { time: string; title: string }[]
 }
 
+interface LearningPath {
+  id: string
+  title: string
+  description: string
+  icon: typeof BookOpen
+  color: string
+  steps: { articleId: string; label: string }[]
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 // ─── Category Definitions ───────────────────────────────────────────────
 
 const categories = [
@@ -91,6 +115,58 @@ const categories = [
   { id: 'AI', label: 'AI & Intelligence', icon: Brain },
   { id: 'Security', label: 'Security', icon: Shield },
   { id: 'Growth', label: 'Growth', icon: TrendingUp },
+]
+
+// ─── Learning Paths ────────────────────────────────────────────────────
+
+const learningPaths: LearningPath[] = [
+  {
+    id: 'lp1',
+    title: 'Sovereign Income Starter',
+    description: 'Your first income stream from scratch',
+    icon: Rocket,
+    color: 'fw-accent',
+    steps: [
+      { articleId: 'a6', label: 'Quick Start' },
+      { articleId: 'a1', label: 'First Engine' },
+      { articleId: 'a3', label: 'Wallet Setup' },
+      { articleId: 'a8', label: 'First Revenue' },
+    ],
+  },
+  {
+    id: 'lp2',
+    title: 'Traffic & Lead Mastery',
+    description: 'Master lead generation and scoring',
+    icon: Target,
+    color: 'fw-purple',
+    steps: [
+      { articleId: 'a4', label: 'AI Content' },
+      { articleId: 'a2', label: 'Lead Scoring' },
+      { articleId: 'a5', label: 'Automation' },
+    ],
+  },
+  {
+    id: 'lp3',
+    title: 'Ecosystem Expert',
+    description: 'Advanced strategies for maximum income',
+    icon: Sparkles,
+    color: 'fw-gold',
+    steps: [
+      { articleId: 'a7', label: 'Advanced Engines' },
+      { articleId: 'a10', label: 'Security' },
+      { articleId: 'a8', label: 'Referral Empire' },
+    ],
+  },
+]
+
+// ─── Quick Tips ─────────────────────────────────────────────────────────
+
+const quickTips = [
+  { text: 'Pro Tip: Start with the Content Syndicator for fastest results', icon: Zap },
+  { text: 'Pro Tip: Bookmark articles you want to revisit later', icon: Bookmark },
+  { text: 'Pro Tip: Use the AI chat below articles for instant answers', icon: MessageCircle },
+  { text: 'Pro Tip: Complete learning paths to master the ecosystem faster', icon: Map },
+  { text: 'Pro Tip: Press / to quickly search, b to bookmark, Esc to go back', icon: Search },
 ]
 
 // ─── Full Article Data ──────────────────────────────────────────────────
@@ -986,6 +1062,27 @@ const difficultyConfig = {
   Advanced: { color: 'text-fw-red', bg: 'bg-fw-red/10', border: 'border-fw-red/30' },
 }
 
+// ─── localStorage helpers ───────────────────────────────────────────────
+
+function loadFromStorage<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback
+  try {
+    const stored = localStorage.getItem(key)
+    return stored ? JSON.parse(stored) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function saveToStorage(key: string, value: unknown) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Silently fail if localStorage is full
+  }
+}
+
 // ─── View States ────────────────────────────────────────────────────────
 
 type ViewState = 'browse' | 'article' | 'video'
@@ -1004,7 +1101,89 @@ export default function KnowledgeBaseView() {
   const [showToc, setShowToc] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
 
+  // New state for enhancements
+  const [showBackToTop, setShowBackToTop] = useState(false)
+  const [tipIndex, setTipIndex] = useState(0)
+  const [tipDismissed, setTipDismissed] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+  const [aiChatMessages, setAiChatMessages] = useState<ChatMessage[]>([])
+  const [aiChatInput, setAiChatInput] = useState('')
+  const [aiChatLoading, setAiChatLoading] = useState(false)
+  const [mobileTocOpen, setMobileTocOpen] = useState(false)
+
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const articleContainerRef = useRef<HTMLDivElement>(null)
+  const aiChatEndRef = useRef<HTMLDivElement>(null)
+
   const { dispatch } = useEngineBus()
+
+  // ─── localStorage persistence ────────────────────────────────────
+  useEffect(() => {
+    setBookmarks(loadFromStorage('fw_kb_bookmarks', []))
+    setReadArticles(loadFromStorage('fw_kb_read_articles', []))
+  }, [])
+
+  useEffect(() => {
+    saveToStorage('fw_kb_bookmarks', bookmarks)
+  }, [bookmarks])
+
+  useEffect(() => {
+    saveToStorage('fw_kb_read_articles', readArticles)
+  }, [readArticles])
+
+  // ─── Quick tips auto-rotation ────────────────────────────────────
+  useEffect(() => {
+    if (tipDismissed) return
+    const interval = setInterval(() => {
+      setTipIndex((prev) => (prev + 1) % quickTips.length)
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [tipDismissed])
+
+  // ─── Keyboard shortcuts ──────────────────────────────────────────
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
+
+      // / to focus search
+      if (e.key === '/' && !isInput) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+
+      // Escape to go back
+      if (e.key === 'Escape') {
+        if (viewState === 'article' || viewState === 'video') {
+          goBack()
+        } else if (isInput) {
+          ;(target as HTMLInputElement).blur()
+        }
+      }
+
+      // b to bookmark current article
+      if (e.key === 'b' && !isInput && viewState === 'article' && selectedArticleId) {
+        toggleBookmark(selectedArticleId)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [viewState, selectedArticleId, toggleBookmark, goBack])
+
+  // ─── Back to top scroll tracking ─────────────────────────────────
+  useEffect(() => {
+    function handleScroll() {
+      setShowBackToTop(window.scrollY > 400)
+    }
+    window.addEventListener('scroll', handleScroll, true)
+    return () => window.removeEventListener('scroll', handleScroll, true)
+  }, [])
+
+  // ─── AI chat auto-scroll ─────────────────────────────────────────
+  useEffect(() => {
+    aiChatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [aiChatMessages])
 
   const selectedArticle = articles.find((a) => a.id === selectedArticleId)
   const selectedVideo = videoTutorials.find((v) => v.id === selectedVideoId)
@@ -1048,6 +1227,10 @@ export default function KnowledgeBaseView() {
     setViewState('article')
     setActiveSectionId(null)
     setReadArticles((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    setAiChatMessages([])
+    setAiChatInput('')
+    setMobileTocOpen(false)
+    setShowBackToTop(false)
 
     // Dispatch engine bus event
     const article = articles.find((a) => a.id === id)
@@ -1072,6 +1255,49 @@ export default function KnowledgeBaseView() {
     setSelectedArticleId(null)
     setSelectedVideoId(null)
     setActiveSectionId(null)
+    setAiChatMessages([])
+    setMobileTocOpen(false)
+  }, [])
+
+  const copyArticleLink = useCallback(() => {
+    if (!selectedArticleId) return
+    const ref = `fw://kb/article/${selectedArticleId}`
+    navigator.clipboard.writeText(ref).then(() => {
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
+    })
+  }, [selectedArticleId])
+
+  const askAiChat = useCallback(async () => {
+    if (!aiChatInput.trim() || aiChatLoading) return
+    const question = aiChatInput.trim()
+    setAiChatInput('')
+    setAiChatMessages((prev) => [...prev, { role: 'user', content: question }])
+    setAiChatLoading(true)
+
+    try {
+      const articleContent = selectedArticle?.sections.map((s) => s.content).join('\n\n') || ''
+      const res = await fetch('/api/kb-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question,
+          articleTitle: selectedArticle?.title || '',
+          articleContent: articleContent.slice(0, 3000),
+        }),
+      })
+      const data = await res.json()
+      setAiChatMessages((prev) => [...prev, { role: 'assistant', content: data.reply }])
+    } catch {
+      setAiChatMessages((prev) => [...prev, { role: 'assistant', content: 'Sorry, I couldn\'t connect to the AI. Please try again.' }])
+    } finally {
+      setAiChatLoading(false)
+    }
+  }, [aiChatInput, aiChatLoading, selectedArticle])
+
+  const scrollToTop = useCallback(() => {
+    articleContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
   const bookmarkedArticles = useMemo(() => {
@@ -1082,6 +1308,21 @@ export default function KnowledgeBaseView() {
     return articles.filter((a) => a.featured)
   }, [])
 
+  // ─── Navigation helpers for prev/next article ────────────────────
+  const navigationArticles = useMemo(() => {
+    if (!selectedArticle) return []
+    // Navigate through same category or all if category is narrow
+    const sameCategory = articles.filter((a) => a.category === selectedArticle.category)
+    return sameCategory.length > 1 ? sameCategory : articles
+  }, [selectedArticle])
+
+  const currentArticleIndex = useMemo(() => {
+    return navigationArticles.findIndex((a) => a.id === selectedArticleId)
+  }, [navigationArticles, selectedArticleId])
+
+  const prevArticle = currentArticleIndex > 0 ? navigationArticles[currentArticleIndex - 1] : null
+  const nextArticle = currentArticleIndex < navigationArticles.length - 1 ? navigationArticles[currentArticleIndex + 1] : null
+
   // ─── Article Reading View ──────────────────────────────────────────
   if (viewState === 'article' && selectedArticle) {
     const diffConfig = difficultyConfig[selectedArticle.difficulty]
@@ -1091,7 +1332,7 @@ export default function KnowledgeBaseView() {
       .filter(Boolean) as Article[]
 
     return (
-      <div className="p-4 md:p-6 fw-scrollbar overflow-y-auto h-full">
+      <div className="p-4 md:p-6 fw-scrollbar overflow-y-auto h-full relative" ref={articleContainerRef}>
         {/* Breadcrumb Navigation */}
         <div className="flex items-center gap-2 mb-6">
           <Button
@@ -1150,6 +1391,19 @@ export default function KnowledgeBaseView() {
                     <><Bookmark className="w-4 h-4 mr-1" /> Bookmark</>
                   )}
                 </Button>
+                {/* Copy Link */}
+                <Button
+                  onClick={copyArticleLink}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3 text-fw-dim hover:text-fw-accent"
+                >
+                  {copiedLink ? (
+                    <><Check className="w-4 h-4 mr-1 text-fw-green" /> Copied!</>
+                  ) : (
+                    <><LinkIcon className="w-4 h-4 mr-1" /> Copy Link</>
+                  )}
+                </Button>
                 <Button
                   onClick={() => setShowToc(!showToc)}
                   variant="ghost"
@@ -1159,6 +1413,39 @@ export default function KnowledgeBaseView() {
                   <List className="w-4 h-4 mr-1" /> Contents
                 </Button>
               </div>
+            </div>
+
+            {/* Mobile TOC - collapsible section */}
+            <div className="lg:hidden mb-6">
+              <button
+                onClick={() => setMobileTocOpen(!mobileTocOpen)}
+                className="flex items-center gap-2 w-full px-4 py-2 rounded-lg border border-fw-border bg-fw-surface text-xs font-mono tracking-wider uppercase text-fw-dim hover:text-fw-text transition-colors"
+              >
+                <List className="w-4 h-4" />
+                Table of Contents
+                {mobileTocOpen ? <ChevronUp className="w-3 h-3 ml-auto" /> : <ChevronDown className="w-3 h-3 ml-auto" />}
+              </button>
+              {mobileTocOpen && (
+                <nav className="mt-2 p-3 rounded-lg border border-fw-border bg-fw-surface space-y-1">
+                  {selectedArticle.sections.map((section, i) => (
+                    <button
+                      key={section.id}
+                      onClick={() => {
+                        const el = document.getElementById(section.id)
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        setActiveSectionId(section.id)
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded text-xs font-mono tracking-wider transition-colors ${
+                        activeSectionId === section.id
+                          ? 'bg-fw-accent/10 text-fw-accent'
+                          : 'text-fw-dim hover:text-fw-text hover:bg-fw-bg'
+                      }`}
+                    >
+                      {i + 1}. {section.title}
+                    </button>
+                  ))}
+                </nav>
+              )}
             </div>
 
             {/* Article Sections */}
@@ -1197,6 +1484,32 @@ export default function KnowledgeBaseView() {
               </div>
             </div>
 
+            {/* Prev / Next Navigation */}
+            <div className="mt-8 flex items-center justify-between gap-4">
+              {prevArticle ? (
+                <Button
+                  onClick={() => openArticle(prevArticle.id)}
+                  variant="outline"
+                  size="sm"
+                  className="border-fw-border text-fw-dim hover:text-fw-accent hover:border-fw-accent/30 flex-1 max-w-[240px]"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span className="truncate text-xs font-mono tracking-wider uppercase">{prevArticle.title}</span>
+                </Button>
+              ) : <div />}
+              {nextArticle ? (
+                <Button
+                  onClick={() => openArticle(nextArticle.id)}
+                  variant="outline"
+                  size="sm"
+                  className="border-fw-border text-fw-dim hover:text-fw-accent hover:border-fw-accent/30 flex-1 max-w-[240px]"
+                >
+                  <span className="truncate text-xs font-mono tracking-wider uppercase">{nextArticle.title}</span>
+                  <ArrowRight className="w-4 h-4 ml-2 flex-shrink-0" />
+                </Button>
+              ) : <div />}
+            </div>
+
             {/* Related Articles */}
             {relatedArticlesData.length > 0 && (
               <div className="mt-8">
@@ -1227,6 +1540,64 @@ export default function KnowledgeBaseView() {
                 </div>
               </div>
             )}
+
+            {/* Ask AI Chat Panel */}
+            <div className="mt-8 p-4 rounded-lg border border-fw-purple/20 bg-fw-purple/5">
+              <h3 className="text-sm font-bold tracking-widest uppercase text-fw-purple mb-3 flex items-center gap-2">
+                <MessageCircle className="w-4 h-4" /> Ask AI about this article
+              </h3>
+              {aiChatMessages.length > 0 && (
+                <div className="space-y-3 mb-4 max-h-64 overflow-y-auto fw-scrollbar">
+                  {aiChatMessages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] p-3 rounded-lg text-sm font-mono leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'bg-fw-accent/10 text-fw-accent border border-fw-accent/20'
+                          : 'bg-fw-surface text-fw-text border border-fw-border'
+                      }`}>
+                        {msg.content.split('**').map((part, j) =>
+                          j % 2 === 1 ? (
+                            <strong key={j} className="text-fw-accent font-bold">{part}</strong>
+                          ) : (
+                            <span key={j}>{part}</span>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {aiChatLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-fw-surface border border-fw-border p-3 rounded-lg">
+                        <div className="flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-fw-purple animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <div className="w-1.5 h-1.5 rounded-full bg-fw-purple animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <div className="w-1.5 h-1.5 rounded-full bg-fw-purple animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={aiChatEndRef} />
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={aiChatInput}
+                  onChange={(e) => setAiChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askAiChat() } }}
+                  placeholder="Ask anything about this article..."
+                  className="bg-fw-bg border-fw-border font-mono text-sm focus:border-fw-purple/50 flex-1"
+                  disabled={aiChatLoading}
+                />
+                <Button
+                  onClick={askAiChat}
+                  disabled={aiChatLoading || !aiChatInput.trim()}
+                  size="sm"
+                  className="bg-fw-purple/20 text-fw-purple hover:bg-fw-purple/30 border border-fw-purple/30 px-3"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Table of Contents Sidebar (desktop) */}
@@ -1270,9 +1641,41 @@ export default function KnowledgeBaseView() {
                   {readArticles.length}/{articles.length} articles read
                 </p>
               </div>
+
+              {/* Keyboard shortcuts hint */}
+              <div className="mt-4 p-3 rounded-lg border border-fw-border bg-fw-bg">
+                <p className="text-[9px] font-mono tracking-widest uppercase text-fw-dim mb-2">
+                  Shortcuts
+                </p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-mono text-fw-dim">Search</span>
+                    <kbd className="text-[8px] font-mono px-1.5 py-0.5 rounded border border-fw-border bg-fw-surface text-fw-dim">/</kbd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-mono text-fw-dim">Bookmark</span>
+                    <kbd className="text-[8px] font-mono px-1.5 py-0.5 rounded border border-fw-border bg-fw-surface text-fw-dim">b</kbd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-mono text-fw-dim">Go back</span>
+                    <kbd className="text-[8px] font-mono px-1.5 py-0.5 rounded border border-fw-border bg-fw-surface text-fw-dim">Esc</kbd>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Back to Top floating button */}
+        {showBackToTop && (
+          <button
+            onClick={scrollToTop}
+            className="fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-fw-accent/20 border border-fw-accent/30 flex items-center justify-center text-fw-accent hover:bg-fw-accent/30 transition-colors shadow-lg"
+            aria-label="Back to top"
+          >
+            <ArrowUp className="w-4 h-4" />
+          </button>
+        )}
       </div>
     )
   }
@@ -1371,9 +1774,10 @@ export default function KnowledgeBaseView() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fw-dim" />
         <Input
+          ref={searchInputRef}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search articles, tutorials, and guides..."
+          placeholder="Search articles, tutorials, and guides...  (press /)"
           className="bg-fw-bg border-fw-border pl-10 font-mono text-sm focus:border-fw-accent/50"
         />
         {searchQuery && (
@@ -1409,6 +1813,81 @@ export default function KnowledgeBaseView() {
         })}
       </div>
 
+      {/* Learning Paths */}
+      {!searchQuery && activeCategory === 'All' && (
+        <div>
+          <h3 className="text-xs font-mono tracking-widest uppercase text-fw-accent mb-3 flex items-center gap-2">
+            <Map className="w-4 h-4" /> Learning Paths
+          </h3>
+          <div className="flex gap-4 overflow-x-auto pb-3">
+            {learningPaths.map((path) => {
+              const PathIcon = path.icon
+              const completedSteps = path.steps.filter((s) => readArticles.includes(s.articleId)).length
+              const progressPct = Math.round((completedSteps / path.steps.length) * 100)
+              const isComplete = completedSteps === path.steps.length
+
+              return (
+                <Card
+                  key={path.id}
+                  className="bg-fw-surface border-fw-border hover:border-fw-accent/30 transition-all min-w-[280px] max-w-[320px] flex-shrink-0"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center bg-${path.color}/10`}>
+                        <PathIcon className={`w-3.5 h-3.5 text-${path.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs font-bold tracking-wider uppercase truncate">{path.title}</h4>
+                        <p className="text-[9px] text-fw-dim font-mono truncate">{path.description}</p>
+                      </div>
+                      {isComplete && <CheckCircle2 className="w-4 h-4 text-fw-green flex-shrink-0" />}
+                    </div>
+                    {/* Progress bar */}
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] font-mono text-fw-dim">{completedSteps}/{path.steps.length} steps</span>
+                        <span className="text-[9px] font-mono text-fw-accent">{progressPct}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-fw-border rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${isComplete ? 'bg-fw-green' : 'bg-fw-accent'}`}
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                    </div>
+                    {/* Steps */}
+                    <div className="space-y-1.5">
+                      {path.steps.map((step, i) => {
+                        const stepRead = readArticles.includes(step.articleId)
+                        return (
+                          <button
+                            key={step.articleId}
+                            onClick={() => openArticle(step.articleId)}
+                            className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded hover:bg-fw-bg/50 transition-colors group"
+                          >
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[8px] font-mono font-bold ${
+                              stepRead
+                                ? 'bg-fw-green/20 text-fw-green border border-fw-green/30'
+                                : 'bg-fw-border text-fw-dim'
+                            }`}>
+                              {stepRead ? <Check className="w-3 h-3" /> : i + 1}
+                            </div>
+                            <span className={`text-[10px] font-mono tracking-wider uppercase ${stepRead ? 'text-fw-text' : 'text-fw-dim group-hover:text-fw-text'} transition-colors`}>
+                              {step.label}
+                            </span>
+                            <ChevronRight className="w-3 h-3 text-fw-dim ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Bookmarked Articles (when no search active) */}
       {!searchQuery && activeCategory === 'All' && bookmarkedArticles.length > 0 && (
         <div>
@@ -1417,7 +1896,7 @@ export default function KnowledgeBaseView() {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {bookmarkedArticles.map((article) => {
-              const diffConfig = difficultyConfig[article.difficulty]
+              const bDiffConfig = difficultyConfig[article.difficulty]
               return (
                 <Card
                   key={`bm-${article.id}`}
@@ -1427,7 +1906,7 @@ export default function KnowledgeBaseView() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <BookmarkCheck className="w-3 h-3 text-fw-gold" />
-                      <Badge className={`text-[8px] ${diffConfig.color} ${diffConfig.bg} ${diffConfig.border} border`}>
+                      <Badge className={`text-[8px] ${bDiffConfig.color} ${bDiffConfig.bg} ${bDiffConfig.border} border`}>
                         {article.difficulty}
                       </Badge>
                     </div>
@@ -1449,7 +1928,7 @@ export default function KnowledgeBaseView() {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {featuredArticles.map((article) => {
-              const diffConfig = difficultyConfig[article.difficulty]
+              const fDiffConfig = difficultyConfig[article.difficulty]
               const isRead = readArticles.includes(article.id)
               return (
                 <Card
@@ -1461,7 +1940,7 @@ export default function KnowledgeBaseView() {
                   <CardContent className="p-4 relative z-10">
                     <div className="flex items-center gap-2 mb-2">
                       <Star className="w-3 h-3 text-fw-gold fill-fw-gold" />
-                      <Badge className={`text-[8px] ${diffConfig.color} ${diffConfig.bg} ${diffConfig.border} border`}>
+                      <Badge className={`text-[8px] ${fDiffConfig.color} ${fDiffConfig.bg} ${fDiffConfig.border} border`}>
                         {article.difficulty}
                       </Badge>
                       <Badge variant="outline" className="text-[8px] border-fw-accent/30 text-fw-accent">
@@ -1490,6 +1969,42 @@ export default function KnowledgeBaseView() {
         </div>
       )}
 
+      {/* Quick Tips (between featured and all articles) */}
+      {!searchQuery && activeCategory === 'All' && !tipDismissed && (
+        <div className="relative overflow-hidden rounded-lg border border-fw-gold/20 bg-fw-gold/5 p-4 transition-all duration-500">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-fw-gold/10 flex items-center justify-center flex-shrink-0">
+              {(() => {
+                const TipIcon = quickTips[tipIndex].icon
+                return <TipIcon className="w-4 h-4 text-fw-gold" />
+              })()}
+            </div>
+            <p className="text-sm font-mono text-fw-gold flex-1">
+              {quickTips[tipIndex].text}
+            </p>
+            <Button
+              onClick={() => setTipDismissed(true)}
+              variant="ghost"
+              size="sm"
+              className="text-fw-gold/60 hover:text-fw-gold h-7 px-2 text-xs font-mono"
+            >
+              Got it
+            </Button>
+          </div>
+          {/* Tip indicator dots */}
+          <div className="flex items-center justify-center gap-1 mt-2">
+            {quickTips.map((_, i) => (
+              <div
+                key={i}
+                className={`w-1 h-1 rounded-full transition-all duration-300 ${
+                  i === tipIndex ? 'bg-fw-gold w-3' : 'bg-fw-gold/30'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* All Articles */}
       <div>
         <h3 className="text-xs font-mono tracking-widest uppercase text-fw-dim mb-4 flex items-center gap-2">
@@ -1514,7 +2029,7 @@ export default function KnowledgeBaseView() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredArticles.map((article) => {
-              const diffConfig = difficultyConfig[article.difficulty]
+              const aDiffConfig = difficultyConfig[article.difficulty]
               const isRead = readArticles.includes(article.id)
               const isBookmarked = bookmarks.includes(article.id)
               const ArticleIcon = article.icon
@@ -1532,7 +2047,7 @@ export default function KnowledgeBaseView() {
                           <ArticleIcon className="w-3.5 h-3.5 text-fw-accent" />
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <Badge className={`text-[8px] ${diffConfig.color} ${diffConfig.bg} ${diffConfig.border} border`}>
+                          <Badge className={`text-[8px] ${aDiffConfig.color} ${aDiffConfig.bg} ${aDiffConfig.border} border`}>
                             {article.difficulty}
                           </Badge>
                           <Badge variant="outline" className="text-[8px] border-fw-accent/30 text-fw-accent">

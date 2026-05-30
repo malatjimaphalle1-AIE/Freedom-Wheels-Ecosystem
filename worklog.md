@@ -93,3 +93,60 @@ Stage Summary:
 - 19 cross-engine connections with auto-reaction chains
 - All 5 major views (Wallet, Marketplace, Login, Referrals, LiveEngines) now dispatch engine bus events
 - LiveEnginesView enhanced with reaction chain visualization and test event panel
+
+---
+Task ID: 2
+Agent: full-stack-developer
+Task: Enhance KnowledgeBaseView with learning paths, AI integration, persistence, better navigation, and interactive features
+
+Work Log:
+- Read worklog.md and existing KnowledgeBaseView.tsx (1674 lines) to understand current state
+- Read engine-bus.ts, freedom-store.ts, and existing API routes for context
+- Created /api/kb-ai/route.ts API endpoint for AI chat integration using z-ai-web-dev-sdk
+- Enhanced KnowledgeBaseView.tsx with 8 major features:
+  1. Learning Paths Section: 3 curated paths (Sovereign Income Starter, Traffic & Lead Mastery, Ecosystem Expert) as horizontal scrollable cards with progress tracking based on read articles, clickable steps that navigate to articles, and progress bars
+  2. Smart Navigation: Previous/Next article buttons at bottom of article view navigating through same-category articles, and floating Back-to-Top button when scrolled down
+  3. localStorage Persistence: Bookmarks and readArticles persist to localStorage (fw_kb_bookmarks, fw_kb_read_articles keys), loaded on mount, saved on every change
+  4. Ask AI Chat Panel: Inline AI chat at bottom of article view with message history, typing animation, sends question + article context to /api/kb-ai endpoint, auto-scrolls to latest message
+  5. Quick Tips Section: Rotating tips between featured and all articles, auto-rotates every 8 seconds, animated indicator dots, dismissible with "Got it" button
+  6. Article Share/Copy: "Copy Link" button in article header that copies fw://kb/article/{id} reference, shows "Copied!" confirmation for 2 seconds
+  7. Improved Mobile Experience: Mobile TOC shown as collapsible section instead of sidebar, proper responsive design maintained
+  8. Keyboard Shortcuts: "/" to focus search, "Escape" to go back from article/video, "b" to bookmark current article; shortcuts hint displayed in desktop TOC sidebar
+- All existing article data, video tutorials, instructors, categories, and rendering logic preserved
+- Added new imports: useEffect, useRef, Progress, Textarea, ArrowUp, Send, MessageCircle, LinkIcon, Map, Check, ChevronDown, ChevronUp
+- Added new state: showBackToTop, tipIndex, tipDismissed, copiedLink, aiChatMessages, aiChatInput, aiChatLoading, mobileTocOpen
+- Added helper functions: loadFromStorage, saveToStorage, copyArticleLink, askAiChat, scrollToTop
+- Added learning path data structure with step-articleId mapping
+- Added quick tips data array with 5 rotating tips
+- Added ChatMessage interface for AI chat
+- Fixed eslint warning about react-hooks/exhaustive-deps by adding toggleBookmark and goBack to dependencies
+- Ran lint successfully with 0 errors, 0 warnings
+
+Stage Summary:
+- KnowledgeBaseView enhanced from 1674 to ~1900+ lines with 8 major new features
+- Learning paths provide guided onboarding with 3 curated paths tracking read progress
+- AI chat panel enables inline Q&A within articles using z-ai-web-dev-sdk
+- localStorage persistence ensures bookmarks and reading progress survive page refreshes
+- Keyboard shortcuts (/ search, Esc back, b bookmark) improve power user experience
+- Mobile experience improved with collapsible TOC instead of hidden sidebar
+- Quick tips auto-rotate every 8 seconds with smooth animations
+- Copy Link and prev/next navigation improve article-level interactions
+- /api/kb-ai route created for AI chat backend
+
+---
+Task ID: 5
+Agent: Main
+Task: Fix build error (missing local-auth.ts) and enhance Knowledge Base
+
+Work Log:
+- Diagnosed Module not found error for '@/lib/local-auth' causing 500 errors
+- Recreated /home/z/my-project/src/lib/local-auth.ts with full API (localSignIn, localSignUp, localSignOut, localGetCurrentUser, localGetProfile, localUpdateProfile, localUploadProfilePhoto, localChangePassword, localResetPassword, LocalUser, LocalProfile types, founder auto-seeding)
+- Verified KnowledgeBaseView.tsx was complete (1674 lines) but app couldn't render due to build error
+- Delegated KnowledgeBaseView enhancement to full-stack-developer subagent (Task ID 2)
+- Confirmed lint passes clean, dev server returns 200 OK
+
+Stage Summary:
+- Build error fixed: local-auth.ts recreated with complete localStorage-based auth
+- KnowledgeBaseView enhanced with 8 new features: Learning Paths, AI Chat, Smart Navigation, localStorage Persistence, Quick Tips, Copy Link, Mobile TOC, Keyboard Shortcuts
+- /api/kb-ai route created for AI chat backend
+- App fully functional again
