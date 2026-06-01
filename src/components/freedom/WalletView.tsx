@@ -181,7 +181,7 @@ export default function WalletView() {
     } finally {
       setLoading(false)
     }
-  }, [email])
+  }, [email, dispatch])
 
   useEffect(() => {
     fetchWallet()
@@ -372,9 +372,6 @@ export default function WalletView() {
       </div>
     )
   }
-
-  const fiatAssets = wallet.assets.filter((a) => a.type === 'fiat')
-  const cryptoAssets = wallet.assets.filter((a) => a.type === 'crypto')
 
   return (
     <div className="p-4 md:p-6 space-y-6 fw-scrollbar overflow-y-auto h-full">

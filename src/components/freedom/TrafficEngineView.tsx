@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Brain,
   Search,
-  Globe,
   Hash,
   Share2,
   Loader2,

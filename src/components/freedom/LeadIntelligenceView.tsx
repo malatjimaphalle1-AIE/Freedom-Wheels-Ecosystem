@@ -53,7 +53,7 @@ const scoreDistribution = [
 ]
 
 export default function LeadIntelligenceView() {
-  const { leads, updateLead } = useFreedomStore()
+  const { leads } = useFreedomStore()
   const [sourceFilter, setSourceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [expandedLead, setExpandedLead] = useState<string | null>(null)

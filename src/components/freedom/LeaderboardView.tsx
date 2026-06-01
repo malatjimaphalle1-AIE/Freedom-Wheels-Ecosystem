@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Trophy, TrendingUp, Zap, Crown, Medal } from 'lucide-react'
+import { Trophy, Crown, Medal } from 'lucide-react'
 import { useState } from 'react'
 
 const tabs = ['All', 'Revenue', 'Engines', 'Referrals', 'Community']

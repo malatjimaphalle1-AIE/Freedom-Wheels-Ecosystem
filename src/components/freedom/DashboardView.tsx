@@ -106,7 +106,7 @@ const statCards = [
 ]
 
 export default function DashboardView() {
-  const { engines, logs } = useFreedomStore()
+  const { engines, logs, setCurrentView } = useFreedomStore()
   const [insights, setInsights] = useState<string | null>(null)
   const [loadingInsights, setLoadingInsights] = useState(false)
 
@@ -450,7 +450,7 @@ export default function DashboardView() {
       {/* LIVE ACTIVE ENGINES Banner */}
       <Card
         className="bg-fw-surface border-fw-accent/30 hover:border-fw-accent/50 transition-all cursor-pointer group relative overflow-hidden"
-        onClick={() => useFreedomStore.getState().setCurrentView('engines')}
+        onClick={() => setCurrentView('engines')}
       >
         <div className="absolute top-0 right-0 w-64 h-64 bg-fw-accent/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
         <CardContent className="relative z-10 py-6">

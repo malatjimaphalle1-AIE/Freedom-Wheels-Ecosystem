@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 
-const zai = new ZAI({ apiKey: process.env.ZAI_API_KEY || '' })
-
 function buildPrompt(type: string, data: Record<string, unknown>): string {
   switch (type) {
     case 'insights':
@@ -33,8 +31,9 @@ export async function POST(request: Request) {
     const prompt = buildPrompt(type, data)
 
     try {
-      const response = await zai.llm.chat({
-        model: 'default',
+      const zai = await ZAI.create()
+      const response = await zai.chat.completions.create({
+        model: 'deepseek-chat',
         messages: [{ role: 'user', content: prompt }],
       })
 
