@@ -1,21 +1,8 @@
 {
-  "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/server"
-    },
-    {
-      "src": "/[^.]+$",
-      "dest": "/index.html"
-    }
-  ],
   "crons": [
     {
-      "path": "/api/withdrawal-processor",
-      "schedule": "0 0 * * *"
+      "path": "/api/engines",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
