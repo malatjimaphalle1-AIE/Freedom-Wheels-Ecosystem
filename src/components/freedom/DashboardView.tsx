@@ -30,7 +30,7 @@ import {
   Pie,
   Cell,
 } from 'recharts'
-import { useState } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 
 const revenueData = [
   { month: 'Sep', revenue: 1200, profit: 800 },
@@ -109,6 +109,15 @@ export default function DashboardView() {
   const { engines, logs, setCurrentView } = useFreedomStore()
   const [insights, setInsights] = useState<string | null>(null)
   const [loadingInsights, setLoadingInsights] = useState(false)
+  const [showCharts, setShowCharts] = useState(false)
+
+  // Defer chart rendering to improve INP — show stat cards first, then charts
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      setShowCharts(true)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   const handleAnalyze = async () => {
     setLoadingInsights(true)
@@ -165,7 +174,8 @@ export default function DashboardView() {
         ))}
       </div>
 
-      {/* Revenue Chart + Insights */}
+      {/* Charts — deferred for INP: rendered after first paint */}
+      {showCharts ? (<>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 bg-fw-surface border-fw-border">
           <CardHeader>
@@ -446,6 +456,14 @@ export default function DashboardView() {
           </CardContent>
         </Card>
       </div>
+      </>) : (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-2 text-fw-dim">
+            <Activity className="w-4 h-4 animate-pulse" />
+            <span className="text-xs font-mono tracking-widest uppercase">Loading charts...</span>
+          </div>
+        </div>
+      )}
 
       {/* LIVE ACTIVE ENGINES Banner */}
       <Card

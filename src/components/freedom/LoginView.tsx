@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useEngineBus } from '@/lib/engine-bus'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/components/freedom/AuthProvider'
@@ -112,6 +112,7 @@ export default function LoginView() {
   const [configStatus, setConfigStatus] = useState<'idle' | 'parsing' | 'valid' | 'invalid' | 'saving' | 'saved' | 'error'>('idle')
   const [configError, setConfigError] = useState('')
   const [parsedPreview, setParsedPreview] = useState<Record<string, string> | null>(null)
+  const [isPending, startTransition] = useTransition()
 
   const setCurrentView = useFreedomStore((s) => s.setCurrentView)
   const { isDemoMode, setLocalUser } = useAuth()
@@ -172,6 +173,14 @@ export default function LoginView() {
     }
   }
 
+  // Navigate to a view using startTransition to avoid blocking the main thread
+  // This yields to the browser before the heavy re-render, improving INP
+  const navigateTo = (view: Parameters<typeof setCurrentView>[0]) => {
+    startTransition(() => {
+      setCurrentView(view)
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -188,7 +197,9 @@ export default function LoginView() {
             setLocalUser(result.user)
             // Dispatch engine bus event for login
             dispatch({ source: 'auth-engine', type: 'auth:login', target: ['wallet-engine', 'leaderboard-engine'], payload: { userId: result.user.id, email: result.user.email }, meta: {} })
-            setCurrentView('dashboard')
+            setLoading(false)
+            navigateTo('dashboard')
+            return
           }
         } else if (mode === 'signup') {
           if (!displayName.trim()) {
@@ -203,7 +214,9 @@ export default function LoginView() {
             setLocalUser(result.user)
             // Dispatch engine bus event for signup
             dispatch({ source: 'auth-engine', type: 'auth:signup', target: ['wallet-engine', 'leaderboard-engine', 'referral-engine'], payload: { userId: result.user.id, email: result.user.email }, meta: {} })
-            setCurrentView('dashboard')
+            setLoading(false)
+            navigateTo('dashboard')
+            return
           }
         } else if (mode === 'reset') {
           const result = localResetPassword(email)
@@ -219,7 +232,9 @@ export default function LoginView() {
           await signInWithEmail(email, password)
           // Dispatch engine bus event for login
           dispatch({ source: 'auth-engine', type: 'auth:login', target: ['wallet-engine', 'leaderboard-engine'], payload: { userId: email, email }, meta: {} })
-          setCurrentView('dashboard')
+          setLoading(false)
+          navigateTo('dashboard')
+          return
         } else if (mode === 'signup') {
           if (!displayName.trim()) {
             setError('Display name is required')
@@ -229,7 +244,9 @@ export default function LoginView() {
           await signUpWithEmail(email, password)
           // Dispatch engine bus event for signup
           dispatch({ source: 'auth-engine', type: 'auth:signup', target: ['wallet-engine', 'leaderboard-engine', 'referral-engine'], payload: { userId: email, email }, meta: {} })
-          setCurrentView('dashboard')
+          setLoading(false)
+          navigateTo('dashboard')
+          return
         } else if (mode === 'reset') {
           await resetPassword(email)
           setResetSent(true)
@@ -280,7 +297,8 @@ export default function LoginView() {
     setLoading(true)
     try {
       await signInWithGoogle()
-      setCurrentView('dashboard')
+      setLoading(false)
+      navigateTo('dashboard')
     } catch (err: unknown) {
       const firebaseError = err as { message?: string }
       setError(firebaseError.message || 'Google sign-in failed')
@@ -295,7 +313,7 @@ export default function LoginView() {
     const result = localSignIn(founderEmail, founderPassword)
     if (result.user) {
       setLocalUser(result.user)
-      setCurrentView('dashboard')
+      navigateTo('dashboard')
     }
   }
 
@@ -494,7 +512,7 @@ export default function LoginView() {
                   <Button
                     type="button"
                     onClick={handleGoogleSignIn}
-                    disabled={loading}
+                    disabled={loading || isPending}
                     variant="outline"
                     className="w-full h-11 border-fw-border bg-fw-surface hover:bg-fw-bg text-fw-text font-mono tracking-wider text-sm mb-4"
                   >
@@ -600,7 +618,7 @@ export default function LoginView() {
 
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || isPending}
                   className="w-full h-11 bg-fw-accent text-fw-bg font-bold text-sm tracking-widest uppercase hover:bg-fw-accent/90 fw-glow"
                 >
                   {loading ? (
