@@ -1140,6 +1140,53 @@ export default function KnowledgeBaseView() {
     return () => clearInterval(interval)
   }, [tipDismissed])
 
+  const selectedArticle = articles.find((a) => a.id === selectedArticleId)
+  const selectedVideo = videoTutorials.find((v) => v.id === selectedVideoId)
+
+  const filteredArticles = useMemo(() => {
+    return articles.filter((a) => {
+      if (activeCategory !== 'All' && a.category !== activeCategory) return false
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        return (
+          a.title.toLowerCase().includes(q) ||
+          a.description.toLowerCase().includes(q) ||
+          a.category.toLowerCase().includes(q) ||
+          a.keyTakeaways.some((t) => t.toLowerCase().includes(q)) ||
+          a.sections.some((s) => s.content.toLowerCase().includes(q))
+        )
+      }
+      return true
+    })
+  }, [activeCategory, searchQuery])
+
+  const filteredVideos = useMemo(() => {
+    return videoTutorials.filter((v) => {
+      if (activeCategory !== 'All' && v.category !== activeCategory) return false
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        return v.title.toLowerCase().includes(q) || v.description.toLowerCase().includes(q)
+      }
+      return true
+    })
+  }, [activeCategory, searchQuery])
+
+  // ─── Callbacks (must be defined before useEffects that reference them) ──
+  const toggleBookmark = useCallback((id: string) => {
+    setBookmarks((prev) =>
+      prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]
+    )
+  }, [])
+
+  const goBack = useCallback(() => {
+    setViewState('browse')
+    setSelectedArticleId(null)
+    setSelectedVideoId(null)
+    setActiveSectionId(null)
+    setAiChatMessages([])
+    setMobileTocOpen(false)
+  }, [])
+
   // ─── Keyboard shortcuts ──────────────────────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -1185,43 +1232,6 @@ export default function KnowledgeBaseView() {
     aiChatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [aiChatMessages])
 
-  const selectedArticle = articles.find((a) => a.id === selectedArticleId)
-  const selectedVideo = videoTutorials.find((v) => v.id === selectedVideoId)
-
-  const filteredArticles = useMemo(() => {
-    return articles.filter((a) => {
-      if (activeCategory !== 'All' && a.category !== activeCategory) return false
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase()
-        return (
-          a.title.toLowerCase().includes(q) ||
-          a.description.toLowerCase().includes(q) ||
-          a.category.toLowerCase().includes(q) ||
-          a.keyTakeaways.some((t) => t.toLowerCase().includes(q)) ||
-          a.sections.some((s) => s.content.toLowerCase().includes(q))
-        )
-      }
-      return true
-    })
-  }, [activeCategory, searchQuery])
-
-  const filteredVideos = useMemo(() => {
-    return videoTutorials.filter((v) => {
-      if (activeCategory !== 'All' && v.category !== activeCategory) return false
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase()
-        return v.title.toLowerCase().includes(q) || v.description.toLowerCase().includes(q)
-      }
-      return true
-    })
-  }, [activeCategory, searchQuery])
-
-  const toggleBookmark = useCallback((id: string) => {
-    setBookmarks((prev) =>
-      prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]
-    )
-  }, [])
-
   const openArticle = useCallback((id: string) => {
     setSelectedArticleId(id)
     setViewState('article')
@@ -1248,15 +1258,6 @@ export default function KnowledgeBaseView() {
   const openVideo = useCallback((id: string) => {
     setSelectedVideoId(id)
     setViewState('video')
-  }, [])
-
-  const goBack = useCallback(() => {
-    setViewState('browse')
-    setSelectedArticleId(null)
-    setSelectedVideoId(null)
-    setActiveSectionId(null)
-    setAiChatMessages([])
-    setMobileTocOpen(false)
   }, [])
 
   const copyArticleLink = useCallback(() => {
