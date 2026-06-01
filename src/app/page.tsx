@@ -57,6 +57,7 @@ import ReferralsView from '@/components/freedom/ReferralsView'
 import KnowledgeBaseView from '@/components/freedom/KnowledgeBaseView'
 import SettingsView from '@/components/freedom/SettingsView'
 import ProfileView from '@/components/freedom/ProfileView'
+import { ErrorBoundary } from '@/components/freedom/ErrorBoundary'
 import { signOutUser, isFirebaseConfigured } from '@/lib/firebase-auth'
 import { localSignOut } from '@/lib/local-auth'
 
@@ -111,35 +112,35 @@ function ViewRenderer({ view }: { view: ViewType }) {
     case 'login':
       return <LoginView />
     case 'dashboard':
-      return <DashboardView />
+      return <ErrorBoundary><DashboardView /></ErrorBoundary>
     case 'engines':
-      return <LiveEnginesView />
+      return <ErrorBoundary><LiveEnginesView /></ErrorBoundary>
     case 'builder':
-      return <EngineBuilderView />
+      return <ErrorBoundary><EngineBuilderView /></ErrorBoundary>
     case 'leads':
-      return <LeadIntelligenceView />
+      return <ErrorBoundary><LeadIntelligenceView /></ErrorBoundary>
     case 'wallet':
-      return <WalletView />
+      return <ErrorBoundary><WalletView /></ErrorBoundary>
     case 'marketplace':
-      return <MarketplaceView />
+      return <ErrorBoundary><MarketplaceView /></ErrorBoundary>
     case 'analysis':
-      return <NicheAnalysisView />
+      return <ErrorBoundary><NicheAnalysisView /></ErrorBoundary>
     case 'traffic':
-      return <TrafficEngineView />
+      return <ErrorBoundary><TrafficEngineView /></ErrorBoundary>
     case 'automation':
-      return <AutomationHubView />
+      return <ErrorBoundary><AutomationHubView /></ErrorBoundary>
     case 'leaderboard':
-      return <LeaderboardView />
+      return <ErrorBoundary><LeaderboardView /></ErrorBoundary>
     case 'referrals':
-      return <ReferralsView />
+      return <ErrorBoundary><ReferralsView /></ErrorBoundary>
     case 'knowledge':
-      return <KnowledgeBaseView />
+      return <ErrorBoundary><KnowledgeBaseView /></ErrorBoundary>
     case 'settings':
-      return <SettingsView />
+      return <ErrorBoundary><SettingsView /></ErrorBoundary>
     case 'profile':
-      return <ProfileView />
+      return <ErrorBoundary><ProfileView /></ErrorBoundary>
     default:
-      return <DashboardView />
+      return <ErrorBoundary><DashboardView /></ErrorBoundary>
   }
 }
 

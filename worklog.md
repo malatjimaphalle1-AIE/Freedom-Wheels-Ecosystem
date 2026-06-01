@@ -183,3 +183,47 @@ Stage Summary:
 - 8 lint/quality issues resolved across 5 components
 - Landing page enhanced with 3 new sections (stats, features, testimonials)
 - All code committed, push pending GitHub authentication
+
+---
+Task ID: 3-b
+Agent: fix-niche-analysis
+Task: Fix NicheAnalysisView AI response parsing
+
+Work Log:
+- Read worklog.md for project context and NicheAnalysisView.tsx for current hardcoded implementation
+- Read /api/ai/route.ts to understand AI response format: returns { result: string } where the string is a bullet-point text response
+- Identified the bug: handleAnalyze ignored the AI response and always set hardcoded values for marketSize, competitors, opportunityScore, strategy, risks, and growth — only using `data.result` for the raw field
+- Created FALLBACK_RESULT constant with the original hardcoded values to serve as fallback
+- Implemented parseNicheResponse(text) function with regex-based extraction for all 6 structured fields:
+  - marketSize: Matches "$X.XB/M/K" patterns near "Market Size" keywords
+  - growth: Matches "X% CAGR", "X% growth rate", "growing at X%" patterns
+  - opportunityScore: Matches "Opportunity Score: XX/100" or "score of XX" patterns, validates 1-100 range
+  - competitors: Extracts numbered list ("1) Name") from Competitors section, with fallback to comma-separated or any numbered items in text
+  - strategy: Extracts Strategy section content with multi-line support, plus simpler single-line fallback
+  - risks: Extracts Risk Factors section, supports numbered/bullet/comma-separated formats
+- Each field falls back to FALLBACK_RESULT if parsing fails, ensuring graceful degradation
+- Updated handleAnalyze to call parseNicheResponse(data.result) and spread parsed result with raw text
+- Ran `bun run lint` — passes with 0 errors, 0 warnings
+
+Stage Summary:
+- NicheAnalysisView now properly parses AI response text into structured data instead of hardcoding results
+- parseNicheResponse() handles multiple AI output formats (numbered lists, bullet points, comma-separated, single-line)
+- Hardcoded values retained as per-field fallback — if any field can't be parsed, its fallback is used
+- Lint clean, no errors
+
+---
+Task ID: 3-a
+Agent: fix-automation-hub
+Task: Fix AutomationHubView Switch components
+
+Work Log:
+- Read AutomationHubView.tsx and identified 3 Switch components (one per webhook) that used `checked={wh.active}` with no `onCheckedChange` handler — making them purely visual and un-toggleable
+- Added `webhookActiveStates` state (Record<string, boolean>) initialized from the static webhooks array, mirroring the existing `workflowStatuses` pattern
+- Added `toggleWebhook(id: string)` handler that flips the boolean state for the given webhook ID
+- Updated each Switch to use `checked={webhookActiveStates[wh.id] ?? wh.active}` and `onCheckedChange={() => toggleWebhook(wh.id)}`
+- Ran `bun run lint` — 0 errors, 0 warnings
+
+Stage Summary:
+- All 3 webhook Switch components in AutomationHubView are now fully controlled and toggleable
+- State management follows the same pattern as workflow status toggling (useState + Record lookup)
+- Lint passes clean

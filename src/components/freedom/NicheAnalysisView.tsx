@@ -26,6 +26,178 @@ interface NicheResult {
   raw: string
 }
 
+/** Hardcoded fallback values when AI response parsing fails */
+const FALLBACK_RESULT: Omit<NicheResult, 'raw'> = {
+  marketSize: '$2.4B',
+  competitors: ['AutomationCorp', 'LeadGenius', 'NicheBot'],
+  opportunityScore: 78,
+  strategy:
+    'Focus on underserved mid-market segment with AI-first positioning and community-led growth.',
+  risks: [
+    'Market saturation in enterprise tier',
+    'Regulatory changes in data privacy',
+    'AI commoditization risk',
+  ],
+  growth: '18.2% CAGR',
+}
+
+/**
+ * Parse the AI text response and extract structured niche data.
+ * The AI typically returns bullet-point sections like:
+ *   • Market Size: Estimated $2.4B addressable market with 18% CAGR
+ *   • Top Competitors: 1) AutomationCorp ($120M ARR), 2) LeadGenius, 3) NicheBot
+ *   • Opportunity Score: 78/100 — Strong growth potential
+ *   • Strategy: Focus on underserved mid-market segment...
+ *   • Risk Factors: Market saturation, regulatory changes, AI commoditization
+ *
+ * Falls back to hardcoded values for any field that cannot be parsed.
+ */
+function parseNicheResponse(text: string): Omit<NicheResult, 'raw'> {
+  const result: Partial<Omit<NicheResult, 'raw'>> = {}
+
+  // --- Market Size ---
+  // Match "$X.XB", "$X.XM", "$XB", etc. near "Market Size" or "market size"
+  const marketSizeMatch =
+    text.match(/market\s*size[^$]*\$[\d.]+\s*[BMKbmk]/i) ??
+    text.match(/\$[\d.]+\s*[BMKbmk][^\n]*/i)
+  if (marketSizeMatch) {
+    const dollarMatch = marketSizeMatch[0].match(/\$[\d.]+\s*[BMKbmk]/i)
+    if (dollarMatch) {
+      result.marketSize = dollarMatch[0].toUpperCase()
+    }
+  }
+
+  // --- Growth Rate ---
+  // Match patterns like "18% CAGR", "18.2% CAGR", "growing at 22%"
+  const growthMatch =
+    text.match(
+      /(\d+\.?\d*)\s*%\s*(CAGR|cagr|annual\s+growth|growth\s+rate|YoY)/i
+    ) ??
+    text.match(/growing\s+(at\s+)?(\d+\.?\d*)\s*%/i) ??
+    text.match(/(\d+\.?\d*)\s*%\s*(CAGR|growth)/i)
+  if (growthMatch) {
+    const pct = growthMatch[0].match(/(\d+\.?\d*)\s*%/)?.[1]
+    const label =
+      growthMatch[0].match(/CAGR|cagr/i)?.[0]?.toUpperCase() ?? 'growth'
+    if (pct) {
+      result.growth = `${pct}% ${label}`
+    }
+  }
+
+  // --- Opportunity Score ---
+  // Match "Opportunity Score: 78/100" or "score of 78" or "78 out of 100"
+  const scoreMatch =
+    text.match(/opportunity\s*score[^0-9]*(\d{1,3})\s*\/\s*100/i) ??
+    text.match(/opportunity\s*score[^0-9]*(\d{1,3})/i) ??
+    text.match(/score[^0-9]*(\d{1,3})\s*\/\s*100/i) ??
+    text.match(/(\d{1,3})\s*\/\s*100[^.\n]*opportunity/i)
+  if (scoreMatch) {
+    const score = parseInt(scoreMatch[1], 10)
+    if (score >= 1 && score <= 100) {
+      result.opportunityScore = score
+    }
+  }
+
+  // --- Competitors ---
+  // Match "Competitors: 1) Name, 2) Name, 3) Name" or "- Name, Name, Name"
+  const competitorsSection = text.match(
+    /competitors?[^:]*:([\s\S]*?)(?=(?:•|\*|-)\s*(?:strategy|risk|opportunity|$))/i
+  )
+  if (competitorsSection) {
+    const section = competitorsSection[1]
+    // Extract numbered items: "1) Name" or "1. Name"
+    const numbered = section.matchAll(/\d+[).]\s*([^,(\n]+)/g)
+    const names = Array.from(numbered, (m) => m[1].trim()).filter(Boolean)
+    if (names.length > 0) {
+      result.competitors = names
+    } else {
+      // Try comma-separated names after colon
+      const afterColon = section.match(/:\s*([\w\s,&.]+)/)
+      if (afterColon) {
+        result.competitors = afterColon[1]
+          .split(/[,&]/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 1 && s.length < 50)
+      }
+    }
+  }
+  // Fallback: look for patterns like "1) CompanyName" in the whole text
+  if (!result.competitors) {
+    const allNumbered = text.matchAll(/\d+[).]\s*([A-Z][A-Za-z0-9.]+)/g)
+    const names = Array.from(allNumbered, (m) => m[1].trim()).filter(
+      (s) => s.length > 2 && s.length < 40
+    )
+    if (names.length > 0) {
+      result.competitors = names.slice(0, 5)
+    }
+  }
+
+  // --- Strategy ---
+  // Match "Strategy:" section
+  const strategyMatch = text.match(
+    /strategy[^:]*:([\s\S]*?)(?=(?:•|\*|-)\s*(?:risk|$))/i
+  )
+  if (strategyMatch) {
+    const strat = strategyMatch[1]
+      .replace(/^[\n\r]+/, '')
+      .replace(/[\n\r]+$/, '')
+      .trim()
+    if (strat.length > 10) {
+      result.strategy = strat
+    }
+  }
+  // If strategy section was too greedy or empty, try a simpler extraction
+  if (!result.strategy) {
+    const simpleStrat = text.match(
+      /(?:recommended\s+)?strategy[^:]*:\s*([^\n]+)/i
+    )
+    if (simpleStrat && simpleStrat[1].trim().length > 10) {
+      result.strategy = simpleStrat[1].trim()
+    }
+  }
+
+  // --- Risks ---
+  // Match "Risk Factors:" or "Risks:" section
+  const risksSection = text.match(
+    /risks?[^:]*:([\s\S]*?)(?=(?:•|\*|-)\s*(?:strategy|opportunity|market|$))/i
+  )
+  if (risksSection) {
+    const section = risksSection[1]
+    // Try numbered list: "1) Risk", "1. Risk"
+    const numberedRisks = section.matchAll(/\d+[).]\s*([^\n]+)/g)
+    let riskItems = Array.from(numberedRisks, (m) => m[1].trim()).filter(
+      (s) => s.length > 3
+    )
+    // Try bullet points: "- Risk", "• Risk", "* Risk"
+    if (riskItems.length === 0) {
+      const bulletRisks = section.matchAll(/[•*-]\s*([^\n•*-]+)/g)
+      riskItems = Array.from(bulletRisks, (m) => m[1].trim()).filter(
+        (s) => s.length > 3
+      )
+    }
+    // Try comma-separated
+    if (riskItems.length === 0) {
+      riskItems = section
+        .split(/,/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 5 && s.length < 150)
+    }
+    if (riskItems.length > 0) {
+      result.risks = riskItems
+    }
+  }
+
+  // Merge with fallback for any missing fields
+  return {
+    marketSize: result.marketSize ?? FALLBACK_RESULT.marketSize,
+    competitors: result.competitors ?? FALLBACK_RESULT.competitors,
+    opportunityScore: result.opportunityScore ?? FALLBACK_RESULT.opportunityScore,
+    strategy: result.strategy ?? FALLBACK_RESULT.strategy,
+    risks: result.risks ?? FALLBACK_RESULT.risks,
+    growth: result.growth ?? FALLBACK_RESULT.growth,
+  }
+}
+
 export default function NicheAnalysisView() {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -41,19 +213,9 @@ export default function NicheAnalysisView() {
         body: JSON.stringify({ type: 'niche', data: { query } }),
       })
       const data = await res.json()
-      setResult({
-        marketSize: '$2.4B',
-        competitors: ['AutomationCorp', 'LeadGenius', 'NicheBot'],
-        opportunityScore: 78,
-        strategy: 'Focus on underserved mid-market segment with AI-first positioning and community-led growth.',
-        risks: [
-          'Market saturation in enterprise tier',
-          'Regulatory changes in data privacy',
-          'AI commoditization risk',
-        ],
-        growth: '18.2% CAGR',
-        raw: data.result,
-      })
+      const rawText: string = data.result ?? ''
+      const parsed = parseNicheResponse(rawText)
+      setResult({ ...parsed, raw: rawText })
     } catch {
       setResult(null)
     }

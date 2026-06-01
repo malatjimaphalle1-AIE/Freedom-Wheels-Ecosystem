@@ -74,10 +74,23 @@ export default function AutomationHubView() {
     Object.fromEntries(workflows.map((w) => [w.id, w.status]))
   )
 
+  const [webhookActiveStates, setWebhookActiveStates] = useState<
+    Record<string, boolean>
+  >(
+    Object.fromEntries(webhooks.map((wh) => [wh.id, wh.active]))
+  )
+
   const toggleWorkflow = (id: string) => {
     setWorkflowStatuses((prev) => ({
       ...prev,
       [id]: prev[id] === 'ACTIVE' ? 'PAUSED' : 'ACTIVE',
+    }))
+  }
+
+  const toggleWebhook = (id: string) => {
+    setWebhookActiveStates((prev) => ({
+      ...prev,
+      [id]: !prev[id],
     }))
   }
 
@@ -220,7 +233,10 @@ export default function AutomationHubView() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Switch checked={wh.active} />
+                  <Switch
+                    checked={webhookActiveStates[wh.id] ?? wh.active}
+                    onCheckedChange={() => toggleWebhook(wh.id)}
+                  />
                   <Settings className="w-4 h-4 text-fw-dim cursor-pointer hover:text-fw-accent" />
                 </div>
               </div>
