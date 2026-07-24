@@ -1,0 +1,270 @@
+// Freedom Wheels — subscription-first schema
+// No "deposits", no "yield", no investment product structures.
+// Members pay subscriptions; platform earns external affiliate commissions; platform distributes a share of those commissions back.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  name         String?
+  passwordHash String?
+  tier         Tier           @default(STARTER)
+  status       MemberStatus   @default(PENDING_PAYMENT)
+  payfastToken String? // token from PayFast subscription tokenisation
+  magicToken   String? // for magic-link login
+  magicTokenExpiry DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  subscriptions    Subscription[]
+  payments         SubscriptionPayment[]
+  payouts          PayoutRequest[]
+  distributions    RevenueShareDistribution[]
+  affiliateClicks  AffiliateClick[]
+}
+
+enum Tier {
+  STARTER
+  PRO
+  ELITE
+}
+
+enum MemberStatus {
+  PENDING_PAYMENT // signed up but hasn't completed first PayFast payment
+  ACTIVE          // current on subscription
+  PAST_DUE        // payment failed but in grace period
+  CANCELLED       // user cancelled, access ends at period end
+  BANNED          // compliance ban
+}
+
+model Subscription {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier              Tier
+  amountCents       Int               // subscription price in ZAR cents (e.g. 9900 = R99.00)
+  billingCycle      BillingCycle      @default(MONTHLY)
+  status            SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+model SubscriptionPayment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId  String?
+  payfastPaymentId String? // pf_payment_id from PayFast
+  amountCents     Int
+  currency        String   @default("ZAR")
+  status          PaymentStatus
+  rawPayload      String?  // full ITN payload for audit
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+// External affiliate partners (Amazon, Hostinger, etc.) — public list
+model AffiliatePartner {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  url           String   // public-facing URL
+  affiliateUrl  String   // internal — actual tracking link with ref id
+  commissionRate String  // human-readable, e.g. "1-10%"
+  category      String   // e.g. "Hosting", "Domains", "Design"
+  logoUrl       String?
+  description   String
+  isActive      Boolean  @default(true)
+  displayOrder  Int      @default(100)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  commissions   AffiliateCommission[]
+  clicks        AffiliateClick[]
+  guideLinks    GuidePartnerLink[]
+}
+
+// Tracks when members click affiliate links (for member dashboard + transparency)
+model AffiliateClick {
+  id            String   @id @default(cuid())
+  partnerId     String
+  partner       AffiliatePartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  userId        String?  // null if anonymous (not logged in)
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId     String?  // for anonymous tracking
+  userAgent     String?
+  referrer      String?
+  createdAt     DateTime @default(now())
+
+  @@index([partnerId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Real external affiliate revenue earned by the platform
+model AffiliateCommission {
+  id           String   @id @default(cuid())
+  partnerId    String
+  partner      AffiliatePartner @relation(fields: [partnerId], references: [id])
+  amountCents  Int      // in ZAR cents (converted from USD/EUR at receipt time)
+  currency     String   @default("ZAR")
+  sourceRef    String?  // order ID / transaction ref from partner
+  recordedAt   DateTime @default(now())
+  notes        String?
+
+  @@index([partnerId])
+  @@index([recordedAt])
+}
+
+// Monthly pool — calculated from AffiliateCommission minus platform costs
+model RevenueSharePool {
+  id                  String   @id @default(cuid())
+  month               String   @unique // "YYYY-MM"
+  totalRevenueCents   Int      // sum of AffiliateCommission for the month
+  platformShareCents  Int      // retained for operations
+  distributableCents  Int      // totalRevenue - platformShare
+  starterSharePct     Int      @default(10) // % of distributable for Starter tier
+  proSharePct         Int      @default(25)
+  eliteSharePct       Int      @default(50)
+  // remaining 15% goes to platform growth reserve
+  starterMembers      Int      // count of active Starter members at distribution time
+  proMembers          Int
+  eliteMembers        Int
+  totalMembers        Int
+  distributedAt       DateTime?
+  publishedAt         DateTime?
+  createdAt           DateTime @default(now())
+
+  distributions       RevenueShareDistribution[]
+}
+
+// Per-member distribution entry — what each member received in a given month
+model RevenueShareDistribution {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  poolId       String
+  pool         RevenueSharePool @relation(fields: [poolId], references: [id])
+  tier         Tier
+  amountCents  Int
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([poolId])
+}
+
+// Member requests payout of accumulated distributions
+model PayoutRequest {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountCents  Int
+  status       PayoutStatus @default(PENDING)
+  method       String?  // "bank_transfer", "payfast_wallet", etc.
+  reference    String?  // payout reference from processor
+  requestedAt  DateTime @default(now())
+  processedAt  DateTime?
+  notes        String?
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+// Public monthly transparency report (one row per month)
+model TransparencyReport {
+  id                  String   @id @default(cuid())
+  month               String   @unique // "YYYY-MM"
+  totalMembers        Int
+  newMembers          Int
+  churnedMembers      Int
+  totalRevenueCents   Int
+  platformShareCents  Int
+  distributableCents  Int
+  totalDistributedCents Int
+  partnerBreakdown    String   // JSON string: {partnerId: amountCents}
+  publishedAt         DateTime @default(now())
+  notes               String?
+
+  createdAt           DateTime @default(now())
+}
+
+// Buying guides — content marketing that drives affiliate clicks.
+// Some guides are public (free preview), some are member-only.
+// All contain affiliate links to the platform's partners.
+model Guide {
+  id              String   @id @default(cuid())
+  slug            String   @unique // URL-friendly identifier
+  title           String
+  excerpt         String   // short summary shown in listings
+  contentMarkdown String   // full guide content as Markdown
+  coverImageUrl   String?
+  category        String   // e.g. "Laptops", "Books", "Hosting", "Design Tools"
+  tags            String   // comma-separated tags
+  isMemberOnly    Boolean  @default(false) // if true, only logged-in members can read full content
+  isPublished     Boolean  @default(false)
+  publishedAt     DateTime?
+  authorId        String?  // null = founder; could be a user ID for guest authors
+  viewCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  partnerLinks    GuidePartnerLink[]
+
+  @@index([isPublished, publishedAt])
+  @@index([category])
+}
+
+// Tracks which affiliate partners are linked in each guide (for click analytics)
+model GuidePartnerLink {
+  id          String   @id @default(cuid())
+  guideId     String
+  guide       Guide    @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  partnerId   String
+  partner     AffiliatePartner @relation(fields: [partnerId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([guideId, partnerId])
+  @@index([guideId])
+}
