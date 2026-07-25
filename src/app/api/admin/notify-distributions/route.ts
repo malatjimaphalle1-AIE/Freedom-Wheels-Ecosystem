@@ -9,7 +9,7 @@ import { sendDistributionNotifications } from '@/lib/email'
 // Call this AFTER running distribution AND publishing the transparency report.
 
 export async function POST(req: NextRequest) {
-  const authError = checkAdminAuth(req)
+  const authError = await checkAdminAuth(req)
   if (authError) return authError
 
   try {

@@ -9,7 +9,7 @@ import { publishTransparencyReport } from '@/lib/transparency'
 // Distribution must have been run first.
 
 export async function POST(req: NextRequest) {
-  const authError = checkAdminAuth(req)
+  const authError = await checkAdminAuth(req)
   if (authError) return authError
 
   try {

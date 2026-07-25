@@ -9,7 +9,7 @@ import { db } from '@/lib/db'
 // Used by the founder (admin) when affiliate partners report payouts.
 
 export async function POST(req: NextRequest) {
-  const authError = checkAdminAuth(req)
+  const authError = await checkAdminAuth(req)
   if (authError) return authError
 
   try {

@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 // Body: { title, slug?, excerpt, contentMarkdown, category, tags?, coverImageUrl?, isMemberOnly?, isPublished?, partnerIds? }
 
 export async function POST(req: NextRequest) {
-  const authError = checkAdminAuth(req)
+  const authError = await checkAdminAuth(req)
   if (authError) return authError
 
   try {
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 // GET /api/admin/guides
 // List all guides (including drafts) for admin management
 export async function GET(req: NextRequest) {
-  const authError = checkAdminAuth(req)
+  const authError = await checkAdminAuth(req)
   if (authError) return authError
 
   const guides = await db.guide.findMany({

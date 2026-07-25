@@ -8,7 +8,7 @@ import { runMonthlyDistribution } from '@/lib/distribution'
 // Runs the monthly revenue share distribution.
 
 export async function POST(req: NextRequest) {
-  const authError = checkAdminAuth(req)
+  const authError = await checkAdminAuth(req)
   if (authError) return authError
 
   try {

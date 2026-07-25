@@ -1,17 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, Key, Play, FileText, Plus } from 'lucide-react'
+import { ArrowLeft, Key, Play, FileText, Plus, UserCog } from 'lucide-react'
 
 export default function AdminPage() {
   const [apiKey, setApiKey] = useState('')
   const [authed, setAuthed] = useState(false)
+  const [authMode, setAuthMode] = useState<'loading' | 'session' | 'apikey' | 'unauthenticated'>('loading')
+  const [sessionUser, setSessionUser] = useState<{ email: string; name: string | null; isAdmin: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)
@@ -27,17 +29,48 @@ export default function AdminPage() {
   const [commissionAmount, setCommissionAmount] = useState('')
   const [commissionSource, setCommissionSource] = useState('')
 
+  // Bootstrap form (for first-time founder setup)
+  const [bootstrapEmail, setBootstrapEmail] = useState('')
+  const [bootstrapName, setBootstrapName] = useState('')
+
+  // On mount: check if user is logged in via session AND is admin
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(data => {
+        if (data.authenticated && data.user?.isAdmin) {
+          setSessionUser({
+            email: data.user.email,
+            name: data.user.name,
+            isAdmin: data.user.isAdmin,
+          })
+          setAuthed(true)
+          setAuthMode('session')
+        } else if (data.authenticated) {
+          // Logged in but not admin
+          setAuthMode('unauthenticated')
+        } else {
+          setAuthMode('apikey')
+        }
+      })
+      .catch(() => setAuthMode('apikey'))
+  }, [])
+
   async function callAdmin(endpoint: string, body: unknown) {
     setBusy(true)
     setError(null)
     setResult(null)
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      // If authenticated via API key, send it. Session auth uses cookies automatically.
+      if (authMode === 'apikey' && apiKey) {
+        headers['X-Admin-Key'] = apiKey
+      }
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Key': apiKey,
-        },
+        headers,
         body: JSON.stringify(body),
       })
       const data = await res.json()
@@ -53,6 +86,24 @@ export default function AdminPage() {
   function handleAuth(e: React.FormEvent) {
     e.preventDefault()
     if (apiKey) setAuthed(true)
+  }
+
+  async function runBootstrap() {
+    setBusy(true); setError(null); setResult(null)
+    try {
+      const res = await fetch('/api/admin/bootstrap-founder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': apiKey },
+        body: JSON.stringify({ email: bootstrapEmail, name: bootstrapName || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Bootstrap failed')
+      setResult(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -84,13 +135,23 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {!authed ? (
+        {authMode === 'loading' ? (
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              Checking session…
+            </CardContent>
+          </Card>
+        ) : !authed ? (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Key className="h-4 w-4" /> Admin authentication
               </CardTitle>
-              <CardDescription>Enter your ADMIN_API_KEY to continue</CardDescription>
+              <CardDescription>
+                {authMode === 'unauthenticated'
+                  ? 'You are logged in as a member but do not have admin privileges. Enter the ADMIN_API_KEY to continue, or log out and use the API key only.'
+                  : 'Enter your ADMIN_API_KEY to continue. Once you bootstrap your founder account, you can log in at /member and access /admin without the API key.'}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleAuth} className="space-y-3">
@@ -108,6 +169,40 @@ export default function AdminPage() {
                   Authenticate
                 </Button>
               </form>
+
+              {/* Bootstrap founder account — only shown when not yet authed via session */}
+              <div className="mt-6 pt-6 border-t">
+                <div className="text-sm font-semibold mb-1 flex items-center gap-2">
+                  <UserCog className="h-4 w-4" /> First-time founder setup
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Run this once to create/upgrade your account as ELITE founder with admin privileges.
+                  After running, log in at <Link href="/member" className="text-emerald-600 hover:underline">/member</Link> with the same email,
+                  then return to /admin — you'll be authenticated automatically.
+                </p>
+                <div className="space-y-2">
+                  <Input
+                    type="email"
+                    value={bootstrapEmail}
+                    onChange={(e) => setBootstrapEmail(e.target.value)}
+                    placeholder="founder@email.com"
+                  />
+                  <Input
+                    type="text"
+                    value={bootstrapName}
+                    onChange={(e) => setBootstrapName(e.target.value)}
+                    placeholder="Founder name (optional)"
+                  />
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={runBootstrap}
+                    disabled={busy || !bootstrapEmail || !apiKey}
+                  >
+                    Bootstrap founder account
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         ) : (

@@ -18,6 +18,7 @@ model User {
   passwordHash String?
   tier         Tier           @default(STARTER)
   status       MemberStatus   @default(PENDING_PAYMENT)
+  isAdmin      Boolean        @default(false) // founder / operator flag
   payfastToken String? // token from PayFast subscription tokenisation
   magicToken   String? // for magic-link login
   magicTokenExpiry DateTime?

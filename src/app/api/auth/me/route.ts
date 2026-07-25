@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
       name: true,
       tier: true,
       status: true,
+      isAdmin: true,
       createdAt: true,
     },
   })
