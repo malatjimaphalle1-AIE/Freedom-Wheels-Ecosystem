@@ -169,44 +169,72 @@ export default function AdminPage() {
                   Authenticate
                 </Button>
               </form>
-
-              {/* Bootstrap founder account — only shown when not yet authed via session */}
-              <div className="mt-6 pt-6 border-t">
-                <div className="text-sm font-semibold mb-1 flex items-center gap-2">
-                  <UserCog className="h-4 w-4" /> First-time founder setup
-                </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Run this once to create/upgrade your account as ELITE founder with admin privileges.
-                  After running, log in at <Link href="/member" className="text-emerald-600 hover:underline">/member</Link> with the same email,
-                  then return to /admin — you'll be authenticated automatically.
-                </p>
-                <div className="space-y-2">
-                  <Input
-                    type="email"
-                    value={bootstrapEmail}
-                    onChange={(e) => setBootstrapEmail(e.target.value)}
-                    placeholder="founder@email.com"
-                  />
-                  <Input
-                    type="text"
-                    value={bootstrapName}
-                    onChange={(e) => setBootstrapName(e.target.value)}
-                    placeholder="Founder name (optional)"
-                  />
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={runBootstrap}
-                    disabled={busy || !bootstrapEmail || !apiKey}
-                  >
-                    Bootstrap founder account
-                  </Button>
-                </div>
-              </div>
             </CardContent>
           </Card>
-        ) : (
-          <div className="space-y-6">
+        ) : null}
+
+        {/* Bootstrap founder account — always shown when not session-authed,
+            even after API key auth. This is the one-time setup card. */}
+        {authMode !== 'session' && authMode !== 'loading' && (
+          <Card className={authed ? 'mt-6' : ''}>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <UserCog className="h-4 w-4" /> First-time founder setup
+              </CardTitle>
+              <CardDescription>
+                Run this once to create/upgrade your account as ELITE founder with admin privileges.
+                After running, log in at <Link href="/member" className="text-emerald-600 hover:underline">/member</Link> with the same email,
+                then return to /admin — you&apos;ll be authenticated automatically.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="bootstrap-email">Founder email</Label>
+                <Input
+                  id="bootstrap-email"
+                  type="email"
+                  value={bootstrapEmail}
+                  onChange={(e) => setBootstrapEmail(e.target.value)}
+                  placeholder="founder@email.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bootstrap-name">Founder name (optional)</Label>
+                <Input
+                  id="bootstrap-name"
+                  type="text"
+                  value={bootstrapName}
+                  onChange={(e) => setBootstrapName(e.target.value)}
+                  placeholder="Maphalle Malatji"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bootstrap-key">Admin API key (required to authorize this action)</Label>
+                <Input
+                  id="bootstrap-key"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Paste your ADMIN_API_KEY here"
+                />
+              </div>
+              <Button
+                className="w-full"
+                onClick={runBootstrap}
+                disabled={busy || !bootstrapEmail || !apiKey}
+              >
+                {busy ? 'Running…' : 'Bootstrap founder account'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                This creates a User row in the database with tier=ELITE, status=ACTIVE, isAdmin=true.
+                After this succeeds, the founder can log in at /member via magic link.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {authed ? (
+          <div className="space-y-6 mt-6">
             {/* Distribution */}
             <Card>
               <CardHeader>
@@ -363,7 +391,7 @@ export default function AdminPage() {
               </Card>
             )}
           </div>
-        )}
+        ) : null}
       </main>
 
       <footer className="border-t mt-auto">
