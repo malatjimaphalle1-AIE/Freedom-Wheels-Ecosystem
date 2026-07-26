@@ -11,14 +11,43 @@ import { db } from '@/lib/db'
 //
 // After running this, the founder can log in at /member via magic link and access
 // both their member dashboard AND /admin (without entering the API key each time).
+//
+// TEMPORARY BYPASS (remove after first successful bootstrap):
+// If BOOTSTRAP_TOKEN env var is set, you can call this endpoint with
+// ?bootstrap_token=XXX as a query param (matching the env var value) to bypass
+// admin auth. This is a one-time escape hatch for cases where the X-Admin-Key
+// header isn't working. After bootstrap succeeds, DELETE the BOOTSTRAP_TOKEN
+// env var from Render to re-secure the endpoint.
 
 export async function POST(req: NextRequest) {
-  const authError = await checkAdminAuth(req)
-  if (authError) return authError
+  // Check for temporary bootstrap token bypass
+  const url = new URL(req.url)
+  const providedBypassToken = url.searchParams.get('bootstrap_token')
+  const expectedBypassToken = process.env.BOOTSTRAP_TOKEN
+
+  const bypassActive = !!(expectedBypassToken && providedBypassToken && providedBypassToken === expectedBypassToken)
+
+  // If bypass isn't active, require normal admin auth
+  if (!bypassActive) {
+    const authError = await checkAdminAuth(req)
+    if (authError) return authError
+  }
 
   try {
-    const body = await req.json()
-    const { email, name } = body as { email?: string; name?: string }
+    // Body can come from JSON POST body OR from query params (for bypass URL)
+    let email: string | undefined
+    let name: string | undefined
+
+    if (bypassActive && providedBypassToken) {
+      // Bypass mode: read from query params
+      email = url.searchParams.get('email') || undefined
+      name = url.searchParams.get('name') || undefined
+    } else {
+      // Normal mode: read from JSON body
+      const body = await req.json()
+      email = body.email
+      name = body.name
+    }
 
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       return NextResponse.json({ error: 'Valid email required' }, { status: 400 })
@@ -68,6 +97,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         action: 'upgraded',
+        bypassed: bypassActive,
         user: {
           id: updated.id,
           email: updated.email,
@@ -108,6 +138,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         action: 'created',
+        bypassed: bypassActive,
         user: {
           id: user.id,
           email: user.email,
@@ -124,4 +155,22 @@ export async function POST(req: NextRequest) {
     console.error('[admin/bootstrap-founder] error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+// Also support GET for the bypass URL (so you can visit it in a browser)
+export async function GET(req: NextRequest) {
+  // GET only works with the bypass token
+  const url = new URL(req.url)
+  const providedBypassToken = url.searchParams.get('bootstrap_token')
+  const expectedBypassToken = process.env.BOOTSTRAP_TOKEN
+
+  if (!expectedBypassToken || !providedBypassToken || providedBypassToken !== expectedBypassToken) {
+    return NextResponse.json({
+      error: 'GET method requires bootstrap_token query param matching BOOTSTRAP_TOKEN env var',
+      hint: 'Set BOOTSTRAP_TOKEN in Render env vars, then visit /api/admin/bootstrap-founder?bootstrap_token=XXX&email=...&name=...',
+    }, { status: 401 })
+  }
+
+  // Reuse the POST logic by calling it
+  return POST(req)
 }
