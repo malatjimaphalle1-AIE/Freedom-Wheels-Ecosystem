@@ -42,6 +42,10 @@ export async function GET() {
       isSet: adminKey !== '(not set)',
       length: adminKey.length,
     },
+    bootstrapToken: {
+      isSet: !!process.env.BOOTSTRAP_TOKEN,
+      length: process.env.BOOTSTRAP_TOKEN?.length || 0,
+    },
     baseUrl: {
       value: baseUrl,
     },
