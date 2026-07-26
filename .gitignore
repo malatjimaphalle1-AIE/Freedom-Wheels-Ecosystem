@@ -66,8 +66,9 @@ server.log
 # Download directory (generated outputs)
 /download/
 
-# Scripts directory (dev-only utilities)
-/scripts/
+# Scripts directory (dev-only utilities) — except seed-partners.js which is needed by postbuild
+/scripts/*
+!/scripts/seed-partners.js
 
 # Worklog (session-internal, may contain references to redacted secrets)
 worklog.md
