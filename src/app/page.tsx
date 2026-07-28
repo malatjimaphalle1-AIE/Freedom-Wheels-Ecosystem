@@ -9,6 +9,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Check, ExternalLink, Menu, X, ShieldCheck, TrendingUp, Users, BookOpen, HeartHandshake, Lock, ArrowRight } from 'lucide-react'
 import { TERMS_OF_SERVICE, PRIVACY_POLICY, REFUND_POLICY } from '@/lib/legal-content'
+import { SocialShare } from '@/components/social-share'
 
 type Tier = 'STARTER' | 'PRO' | 'ELITE'
 
@@ -914,13 +915,23 @@ function FinalCta({ onLegalClick }: { onLegalClick: (m: 'terms' | 'privacy' | 'r
         <p className="text-emerald-50 text-lg mb-8 max-w-xl mx-auto">
           Memberships start at R99/month. Cancel anytime. 7-day money-back guarantee.
         </p>
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
           <Button size="lg" variant="secondary" asChild>
             <a href="#pricing">Become a Member</a>
           </Button>
           <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10" onClick={() => onLegalClick('terms')}>
             Read the Terms
           </Button>
+        </div>
+        <div className="flex justify-center">
+          <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm inline-block">
+            <div className="text-emerald-50 text-sm mb-2 font-medium">Share Freedom Wheels:</div>
+            <SocialShareWhite
+              url="https://www.freedomwheels.online"
+              text="Tools, resources, and revenue share for South African entrepreneurs. Not an investment — a real subscription business."
+              page="landing"
+            />
+          </div>
         </div>
       </div>
     </section>
@@ -1151,4 +1162,13 @@ function renderInline(text: string): React.ReactNode {
     }
     return part
   })
+}
+
+// White-themed share component for the FinalCta section (on emerald background)
+function SocialShareWhite({ url, text, page }: { url: string; text: string; page: string }) {
+  return (
+    <div className="[&_button]:border-white/30 [&_button]:text-white [&_button]:hover:bg-white/20">
+      <SocialShare url={url} text={text} page={page} variant="inline" />
+    </div>
+  )
 }

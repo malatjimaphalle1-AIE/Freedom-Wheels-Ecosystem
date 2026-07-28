@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { MarketingTracker } from "@/components/marketing-tracker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,6 +13,8 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+const SITE_URL = "https://www.freedomwheels.online";
 
 export const metadata: Metadata = {
   title: "Freedom Wheels — Tools, resources, and community for South African entrepreneurs",
@@ -28,18 +31,28 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Maphalle Malatji" }],
   openGraph: {
-    title: "Freedom Wheels",
+    title: "Freedom Wheels — Tools for South African entrepreneurs",
     description:
-      "Tools, resources, and community for South African entrepreneurs. Subscription + revenue share from external affiliate commissions.",
-    url: "https://www.freedomwheels.online",
+      "Subscription + revenue share from external affiliate commissions. Not an investment. Not a pyramid. Just tools, community, and fair revenue sharing.",
+    url: SITE_URL,
     siteName: "Freedom Wheels",
     type: "website",
+    locale: "en_ZA",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Freedom Wheels — Tools, resources, and community for South African entrepreneurs",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Freedom Wheels",
+    title: "Freedom Wheels — Tools for SA entrepreneurs",
     description:
       "Subscription + revenue share for South African entrepreneurs. Not an investment. Not a pyramid.",
+    images: ["/og-image.png"],
   },
 };
 
@@ -53,6 +66,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
+        <MarketingTracker />
         {children}
         <Toaster />
       </body>

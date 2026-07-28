@@ -22,6 +22,17 @@ model User {
   payfastToken String? // token from PayFast subscription tokenisation
   magicToken   String? // for magic-link login
   magicTokenExpiry DateTime?
+  // Marketing fields
+  referralCode String?  @unique // e.g. "MAPHALLE1" — member's personal referral code
+  referredById String?  // User who referred this member (null if organic)
+  referredBy   User?    @relation("Referrals", fields: [referredById], references: [id])
+  referrals    User[]   @relation("Referrals")
+  // UTM tracking (captured at signup)
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmContent  String?
+  utmTerm     String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -30,6 +41,7 @@ model User {
   payouts          PayoutRequest[]
   distributions    RevenueShareDistribution[]
   affiliateClicks  AffiliateClick[]
+  socialShares     SocialShare[]
 }
 
 enum Tier {
@@ -268,4 +280,42 @@ model GuidePartnerLink {
 
   @@unique([guideId, partnerId])
   @@index([guideId])
+}
+
+// Social shares — tracks when members click share buttons
+// Used for marketing analytics (which platforms drive the most traffic)
+model SocialShare {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  platform    String   // 'whatsapp' | 'facebook' | 'twitter' | 'linkedin' | 'telegram' | 'email' | 'copy'
+  urlShared   String   // the URL that was shared
+  page        String   // 'landing' | 'guide' | 'member_dashboard' | etc.
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([platform])
+  @@index([createdAt])
+}
+
+// Tracks visits from referral links + UTM-tagged URLs
+// Used for marketing attribution + founder analytics
+model ReferralVisit {
+  id            String   @id @default(cuid())
+  referralCode  String?  // the ref=CODE param
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  utmContent    String?
+  utmTerm       String?
+  landingPage   String   // the page they landed on
+  userAgent     String?
+  ipAddress     String?  // hashed for privacy
+  converted     Boolean  @default(false) // true if they signed up
+  convertedUserId String? // the User ID if they converted
+  createdAt     DateTime @default(now())
+
+  @@index([referralCode])
+  @@index([utmSource])
+  @@index([createdAt])
 }

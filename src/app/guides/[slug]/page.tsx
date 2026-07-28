@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { ArrowLeft, Lock, Eye, Calendar, ExternalLink, Tag } from 'lucide-react'
+import { SocialShare } from '@/components/social-share'
 
 interface GuideData {
   guide: {
@@ -223,6 +224,16 @@ export default function GuidePage({ params }: { params: Promise<{ slug: string }
             </CardContent>
           </Card>
         )}
+
+        {/* Share this guide */}
+        <div className="mt-10 pt-6 border-t">
+          <SocialShare
+            url={typeof window !== 'undefined' ? window.location.href : `https://www.freedomwheels.online/guides/${guide.slug}`}
+            text={`${guide.title} — via Freedom Wheels`}
+            page="guide"
+            variant="full"
+          />
+        </div>
 
         {/* Footer navigation */}
         <div className="mt-10 pt-6 border-t flex justify-between text-sm">

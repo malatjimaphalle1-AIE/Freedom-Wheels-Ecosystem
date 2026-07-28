@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, ExternalLink, LogOut, Wallet, MousePointerClick, TrendingUp, Calendar } from 'lucide-react'
+import { ArrowLeft, ExternalLink, LogOut, Wallet, MousePointerClick, TrendingUp, Calendar, Users, Copy, Check } from 'lucide-react'
 import Link from 'next/link'
+import { SocialShare } from '@/components/social-share'
 
 interface DashboardData {
   user: {
@@ -555,6 +556,9 @@ export default function MemberDashboardPage() {
           </Card>
         </div>
 
+        {/* Referral program */}
+        <ReferralCard />
+
         {/* Affiliate partners */}
         <Card className="mt-6">
           <CardHeader>
@@ -614,6 +618,125 @@ function SummaryCard({ icon, label, value, sub }: { icon: React.ReactNode; label
         </div>
         <div className="text-xl font-bold">{value}</div>
         <div className="text-xs text-muted-foreground mt-1">{sub}</div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================================
+// REFERRAL CARD — shows member's referral link + share buttons
+// ============================================================================
+function ReferralCard() {
+  const [referralData, setReferralData] = useState<{
+    referralCode: string
+    referralUrl: string
+    referralCount: number
+    activeReferrals: number
+    tierBreakdown: { STARTER: number; PRO: number; ELITE: number }
+    signedUpVia: string
+  } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/member/referral')
+      .then(r => r.json())
+      .then(data => {
+        if (data.referralCode) setReferralData(data)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function copyReferralLink() {
+    if (!referralData) return
+    try {
+      await navigator.clipboard.writeText(referralData.referralUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // fallback
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card className="mt-6">
+        <CardContent className="py-6 text-center text-sm text-muted-foreground">
+          Loading referral info…
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!referralData) {
+    return null
+  }
+
+  return (
+    <Card className="mt-6 border-emerald-200 dark:border-emerald-800">
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Users className="h-5 w-5 text-emerald-600" />
+          Refer a friend
+        </CardTitle>
+        <CardDescription>
+          Share your referral link. When friends subscribe, they&apos;re attributed to you (for community building — no commission).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="p-3 bg-muted/50 rounded">
+            <div className="text-2xl font-bold text-emerald-600">{referralData.referralCount}</div>
+            <div className="text-xs text-muted-foreground">Total referred</div>
+          </div>
+          <div className="p-3 bg-muted/50 rounded">
+            <div className="text-2xl font-bold text-emerald-600">{referralData.activeReferrals}</div>
+            <div className="text-xs text-muted-foreground">Active members</div>
+          </div>
+          <div className="p-3 bg-muted/50 rounded">
+            <div className="text-2xl font-bold text-emerald-600">
+              {referralData.tierBreakdown.STARTER + referralData.tierBreakdown.PRO + referralData.tierBreakdown.ELITE}
+            </div>
+            <div className="text-xs text-muted-foreground">Subscribers</div>
+          </div>
+        </div>
+
+        {/* Referral link */}
+        <div>
+          <Label className="text-xs text-muted-foreground">Your referral link</Label>
+          <div className="flex gap-2 mt-1">
+            <Input
+              value={referralData.referralUrl}
+              readOnly
+              className="font-mono text-xs"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <Button size="sm" variant="outline" onClick={copyReferralLink}>
+              {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">
+            Code: <span className="font-mono font-medium">{referralData.referralCode}</span>
+            {referralData.signedUpVia !== 'direct' && (
+              <span className="ml-3">You joined via: {referralData.signedUpVia}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Share buttons */}
+        <SocialShare
+          url={referralData.referralUrl}
+          text="Join me on Freedom Wheels — tools, resources, and revenue share for South African entrepreneurs."
+          page="member_dashboard"
+          variant="full"
+        />
+
+        {/* Compliance note */}
+        <div className="text-xs text-muted-foreground bg-muted/30 p-2 rounded">
+          ℹ️ Referrals are tracked for community building and analytics only. Members do NOT earn commissions from referrals — revenue share comes exclusively from external affiliate commissions, as per our compliance model.
+        </div>
       </CardContent>
     </Card>
   )

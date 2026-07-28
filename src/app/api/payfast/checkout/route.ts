@@ -42,7 +42,24 @@ export async function POST(req: NextRequest) {
     const amountCents = PF_TIER_PRICES[tier]
     const amountRand = (amountCents / 100).toFixed(2)
 
+    // Read UTM + referral cookies (set by client-side tracking script)
+    const utmSource = req.cookies.get('fwe_utm_source')?.value || null
+    const utmMedium = req.cookies.get('fwe_utm_medium')?.value || null
+    const utmCampaign = req.cookies.get('fwe_utm_campaign')?.value || null
+    const utmContent = req.cookies.get('fwe_utm_content')?.value || null
+    const utmTerm = req.cookies.get('fwe_utm_term')?.value || null
+    const referralCode = req.cookies.get('fwe_ref')?.value || null
+
+    // Find referrer (if referral code is set and valid)
+    let referrerId: string | null = null
+    if (referralCode) {
+      const referrer = await db.user.findUnique({ where: { referralCode } })
+      if (referrer) referrerId = referrer.id
+    }
+
     // Create user record (or update existing)
+    // Only set UTM + referredById on FIRST creation (don't overwrite if user already exists)
+    const existingUser = await db.user.findUnique({ where: { email } })
     const user = await db.user.upsert({
       where: { email },
       create: {
@@ -50,12 +67,32 @@ export async function POST(req: NextRequest) {
         name: name || null,
         tier,
         status: 'PENDING_PAYMENT',
+        utmSource,
+        utmMedium,
+        utmCampaign,
+        utmContent,
+        utmTerm,
+        referredById: referrerId,
       },
       update: {
         name: name || undefined,
         tier,
       },
     })
+
+    // If new user was created with a referral, mark the ReferralVisit as converted
+    if (!existingUser && referrerId) {
+      await db.referralVisit.updateMany({
+        where: {
+          referralCode,
+          converted: false,
+        },
+        data: {
+          converted: true,
+          convertedUserId: user.id,
+        },
+      })
+    }
 
     // Create pending payment record
     const payment = await db.subscriptionPayment.create({
