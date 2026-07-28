@@ -46,6 +46,14 @@ export async function GET() {
       isSet: !!process.env.BOOTSTRAP_TOKEN,
       length: process.env.BOOTSTRAP_TOKEN?.length || 0,
     },
+    cronSecret: {
+      isSet: !!process.env.CRON_SECRET,
+      length: process.env.CRON_SECRET?.length || 0,
+      // Show first 4 + last 4 chars only — enough to verify identity without exposing full secret
+      preview: process.env.CRON_SECRET
+        ? process.env.CRON_SECRET.slice(0, 4) + '...' + process.env.CRON_SECRET.slice(-4)
+        : '(not set)',
+    },
     baseUrl: {
       value: baseUrl,
     },
