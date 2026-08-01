@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Edit, Trash2, Eye, FileText, Save } from 'lucide-react'
+import { ArrowLeft, Plus, Edit, Trash2, Eye, FileText, Save, Link2, Copy, Check } from 'lucide-react'
 
 interface Guide {
   id: string
@@ -232,6 +232,9 @@ export default function AdminGuidesPage() {
                 <Label>Content (Markdown) *</Label>
                 <Textarea value={contentMarkdown} onChange={(e) => setContentMarkdown(e.target.value)} rows={12} className="font-mono text-sm" placeholder="# Heading&#10;&#10;Body text with **bold** and [links](https://...)." />
               </div>
+
+              {/* Affiliate Link Helper */}
+              <AffiliateLinkHelper onInsert={(markdown) => setContentMarkdown(prev => prev + '\n\n' + markdown)} />
               <div className="grid sm:grid-cols-3 gap-3">
                 <div>
                   <Label>Category *</Label>
@@ -334,6 +337,215 @@ export default function AdminGuidesPage() {
           </>
         )}
       </main>
+    </div>
+  )
+}
+
+// ============================================================================
+// AFFILIATE LINK HELPER
+// ============================================================================
+// Pastes a raw Amazon URL → extracts ASIN → adds freedomwheels-20 tag
+// Generates 3 Markdown formats: text link, image link, full product block
+// User clicks "Insert" to append the Markdown to the guide content.
+
+function AffiliateLinkHelper({ onInsert }: { onInsert: (markdown: string) => void }) {
+  const [rawUrl, setRawUrl] = useState('')
+  const [productName, setProductName] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
+  const [copied, setCopied] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // Parse ASIN from any Amazon URL format
+  // Handles: /dp/ASIN, /gp/product/ASIN, /exec/obidos/ASIN/, /ASIN/ at end
+  function extractAsin(url: string): string | null {
+    const patterns = [
+      /\/dp\/([A-Z0-9]{10})(?:[/?]|$)/i,
+      /\/gp\/product\/([A-Z0-9]{10})(?:[/?]|$)/i,
+      /\/exec\/obidos\/ASIN\/([A-Z0-9]{10})(?:[/?]|$)/i,
+      /\/ASIN\/([A-Z0-9]{10})(?:[/?]|$)/i,
+      /\/([A-Z0-9]{10})(?:[/?]|$)/i, // fallback: last path segment
+    ]
+    for (const pattern of patterns) {
+      const match = url.match(pattern)
+      if (match && match[1] && match[1].length === 10) {
+        return match[1]
+      }
+    }
+    return null
+  }
+
+  // Build the affiliate URL from ASIN
+  function buildAffiliateUrl(asin: string): string {
+    return `https://www.amazon.com/dp/${asin}?tag=freedomwheels-20`
+  }
+
+  // Generate the 3 Markdown formats
+  function generateMarkdown(): { textLink: string; imageLink: string; fullBlock: string } | null {
+    if (!rawUrl.trim()) return null
+
+    const asin = extractAsin(rawUrl)
+    if (!asin) {
+      setError('Could not extract ASIN from URL. Make sure it\'s an Amazon product URL (e.g., https://www.amazon.com/dp/B0XYZ12345).')
+      return null
+    }
+    setError(null)
+
+    const affiliateUrl = buildAffiliateUrl(asin)
+    const name = productName || `Amazon product ${asin}`
+    const img = imageUrl || ''
+
+    // Type 1: Text link
+    const textLink = `[${name}](${affiliateUrl})`
+
+    // Type 2: Image link (if image URL provided)
+    const imageLink = img
+      ? `[![${name}](${img})](${affiliateUrl})`
+      : '(Add an image URL above to generate image link)'
+
+    // Type 3: Full product block
+    const fullBlock = `### ${name}
+${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
+**ASIN:** ${asin}
+
+**👉 [Check current price on Amazon →](${affiliateUrl})**`
+
+    return { textLink, imageLink, fullBlock }
+  }
+
+  const generated = generateMarkdown()
+
+  function copyToClipboard(text: string, label: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(label)
+      setTimeout(() => setCopied(null), 2000)
+    })
+  }
+
+  function insert(markdown: string, label: string) {
+    onInsert(markdown)
+    setCopied(label + ' inserted!')
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  return (
+    <div className="border rounded-lg p-4 bg-muted/30">
+      <div className="text-sm font-semibold mb-1 flex items-center gap-2">
+        <Link2 className="h-4 w-4" /> Affiliate Link Helper
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">
+        Paste an Amazon product URL. We&apos;ll extract the ASIN, add your <code className="bg-muted px-1 rounded">freedomwheels-20</code> tag, and generate ready-to-use Markdown.
+      </p>
+
+      {/* Input fields */}
+      <div className="space-y-2 mb-4">
+        <div>
+          <Label className="text-xs">Amazon product URL *</Label>
+          <Input
+            type="url"
+            value={rawUrl}
+            onChange={(e) => setRawUrl(e.target.value)}
+            placeholder="https://www.amazon.com/dp/B0XYZ12345"
+            className="mt-1"
+          />
+        </div>
+        <div className="grid sm:grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs">Product name (optional)</Label>
+            <Input
+              type="text"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              placeholder="Lenovo IdeaPad 3"
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Image URL (optional)</Label>
+            <Input
+              type="url"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://m.media-amazon.com/images/I/..."
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Right-click product image on Amazon → &quot;Copy image address&quot;
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/30 p-2 rounded mb-3">
+          {error}
+        </div>
+      )}
+
+      {/* Generated Markdown previews */}
+      {generated && (
+        <div className="space-y-3">
+          {/* Text Link */}
+          <div className="border rounded p-3 bg-background">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-medium text-muted-foreground">Text link</div>
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => copyToClipboard(generated.textLink, 'Text link copied')}>
+                  {copied === 'Text link copied' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => insert(generated.textLink, 'Text link')}>
+                  Insert
+                </Button>
+              </div>
+            </div>
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 p-2 rounded">{generated.textLink}</pre>
+          </div>
+
+          {/* Image Link */}
+          <div className="border rounded p-3 bg-background">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-medium text-muted-foreground">Image link (clickable image)</div>
+              <div className="flex gap-1">
+                {imageUrl && (
+                  <>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => copyToClipboard(generated.imageLink, 'Image link copied')}>
+                      {copied === 'Image link copied' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => insert(generated.imageLink, 'Image link')}>
+                      Insert
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 p-2 rounded">{generated.imageLink}</pre>
+            {!imageUrl && (
+              <p className="text-xs text-muted-foreground mt-1">Add an image URL above to enable this format.</p>
+            )}
+          </div>
+
+          {/* Full Block */}
+          <div className="border rounded p-3 bg-background">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-medium text-muted-foreground">Full product block (recommended)</div>
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => copyToClipboard(generated.fullBlock, 'Full block copied')}>
+                  {copied === 'Full block copied' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                </Button>
+                <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => insert(generated.fullBlock, 'Full block')}>
+                  <Plus className="h-3 w-3 mr-1" /> Insert
+                </Button>
+              </div>
+            </div>
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 p-2 rounded max-h-48 overflow-y-auto">{generated.fullBlock}</pre>
+          </div>
+        </div>
+      )}
+
+      {copied && copied.includes('inserted') && (
+        <div className="mt-3 text-sm text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded">
+          ✓ {copied} — scroll up to see it in the content field.
+        </div>
+      )}
     </div>
   )
 }
