@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Edit, Trash2, Eye, FileText, Save, Link2, Copy, Check } from 'lucide-react'
+import { ArrowLeft, Plus, Edit, Trash2, Eye, FileText, Save, Link2, Copy, Check, ExternalLink } from 'lucide-react'
 
 interface Guide {
   id: string
@@ -377,20 +377,42 @@ function AffiliateLinkHelper({ onInsert }: { onInsert: (markdown: string) => voi
     return `https://www.amazon.com/dp/${asin}?tag=freedomwheels-20`
   }
 
-  // Compute generated markdown + error as DERIVED values (not state)
-  // This avoids calling setState during render, which crashes React 19
+  // Auto-downsize Amazon image URLs from SL1500 to SL500 for faster loading
+  function optimizeImageUrl(url: string): string {
+    return url
+      .replace(/\._AC_SL\d+_/, '._SL500_')
+      .replace(/\._SL\d+_/, '._SL500_')
+  }
+
+  // Validate that a URL looks like an actual image URL (not a webpage)
+  function isValidImageUrl(url: string): boolean {
+    if (!url) return false
+    // Must be an Amazon image URL or end with a common image extension
+    return (
+      url.startsWith('https://m.media-amazon.com/images/I/') ||
+      /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url)
+    )
+  }
+
+  // Compute generated markdown + errors as DERIVED values (not state)
   const asin = rawUrl.trim() ? extractAsin(rawUrl) : null
-  const error = rawUrl.trim() && !asin ? 'Could not extract ASIN from URL. Make sure it\'s an Amazon product URL (e.g., https://www.amazon.com/dp/B0XYZ12345).' : null
+  const urlError = rawUrl.trim() && !asin ? 'Could not extract ASIN from URL. Make sure it\'s an Amazon product URL (e.g., https://www.amazon.com/dp/B0XYZ12345).' : null
+  const imageError = imageUrl.trim() && !isValidImageUrl(imageUrl)
+    ? 'This doesn\'t look like an image URL. Image URLs should start with https://m.media-amazon.com/images/I/ or end in .jpg/.png. You may have pasted the product page URL instead of the image URL.'
+    : null
+
+  // Auto-optimize the image URL if it's valid
+  const optimizedImageUrl = imageUrl.trim() && isValidImageUrl(imageUrl) ? optimizeImageUrl(imageUrl) : imageUrl
 
   const generated = asin ? (() => {
     const affiliateUrl = buildAffiliateUrl(asin)
     const name = productName || `Amazon product ${asin}`
-    const img = imageUrl || ''
+    const img = (optimizedImageUrl.trim() && !imageError) ? optimizedImageUrl : ''
 
     const textLink = `[${name}](${affiliateUrl})`
     const imageLink = img
       ? `[![${name}](${img})](${affiliateUrl})`
-      : '(Add an image URL above to generate image link)'
+      : '(Add a valid image URL above to generate image link)'
     const fullBlock = `### ${name}
 ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
 **ASIN:** ${asin}
@@ -413,6 +435,14 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
     setTimeout(() => setCopied(null), 2000)
   }
 
+  function openAmazonPage() {
+    if (asin) {
+      window.open(`https://www.amazon.com/dp/${asin}`, '_blank', 'noopener,noreferrer')
+    } else {
+      window.open('https://www.amazon.com', '_blank', 'noopener,noreferrer')
+    }
+  }
+
   return (
     <div className="border rounded-lg p-4 bg-muted/30">
       <div className="text-sm font-semibold mb-1 flex items-center gap-2">
@@ -425,7 +455,18 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
       {/* Input fields */}
       <div className="space-y-2 mb-4">
         <div>
-          <Label className="text-xs">Amazon product URL *</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Amazon product URL *</Label>
+            {asin && (
+              <button
+                type="button"
+                onClick={openAmazonPage}
+                className="text-xs text-emerald-600 hover:underline inline-flex items-center gap-1"
+              >
+                <ExternalLink className="h-3 w-3" /> Open Amazon page
+              </button>
+            )}
+          </div>
           <Input
             type="url"
             value={rawUrl}
@@ -452,18 +493,36 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               placeholder="https://m.media-amazon.com/images/I/..."
-              className="mt-1"
+              className={`mt-1 ${imageError ? 'border-rose-400' : ''}`}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Right-click product image on Amazon → &quot;Copy image address&quot;
+              On the Amazon page: right-click the <strong>product image</strong> → &quot;Copy image address&quot; → paste here.
+              <br />
+              <span className="text-xs">URL must start with <code>m.media-amazon.com/images/I/</code></span>
             </p>
           </div>
         </div>
+
+        {/* Quick instructions when ASIN is detected */}
+        {asin && (
+          <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded p-3 text-xs">
+            <div className="font-medium text-emerald-700 dark:text-emerald-400 mb-1">✓ ASIN detected: {asin}</div>
+            <div className="text-muted-foreground">
+              To add an image: click <strong>&quot;Open Amazon page&quot;</strong> above → right-click the main product photo → &quot;Copy image address&quot; → paste into the Image URL field.
+            </div>
+          </div>
+        )}
       </div>
 
-      {error && (
+      {urlError && (
         <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/30 p-2 rounded mb-3">
-          {error}
+          {urlError}
+        </div>
+      )}
+
+      {imageError && (
+        <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/30 p-2 rounded mb-3">
+          ⚠️ {imageError}
         </div>
       )}
 
