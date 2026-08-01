@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -76,6 +76,11 @@ export default function AdminGuidesPage() {
     const data = await res.json()
     setPartners(data.partners || [])
   }
+
+  // Stable callback for inserting markdown — prevents AffiliateLinkHelper re-rendering on every keystroke
+  const handleInsertMarkdown = useCallback((markdown: string) => {
+    setContentMarkdown(prev => prev + '\n\n' + markdown)
+  }, [])
 
   function startNew() {
     setEditing(null)
@@ -234,7 +239,7 @@ export default function AdminGuidesPage() {
               </div>
 
               {/* Affiliate Link Helper */}
-              <AffiliateLinkHelper onInsert={(markdown) => setContentMarkdown(prev => prev + '\n\n' + markdown)} />
+              <AffiliateLinkHelper onInsert={handleInsertMarkdown} />
               <div className="grid sm:grid-cols-3 gap-3">
                 <div>
                   <Label>Category *</Label>
@@ -348,7 +353,7 @@ export default function AdminGuidesPage() {
 // Generates 3 Markdown formats: text link, image link, full product block
 // User clicks "Insert" to append the Markdown to the guide content.
 
-function AffiliateLinkHelper({ onInsert }: { onInsert: (markdown: string) => void }) {
+const AffiliateLinkHelper = memo(function AffiliateLinkHelper({ onInsert }: { onInsert: (markdown: string) => void }) {
   const [rawUrl, setRawUrl] = useState('')
   const [productName, setProductName] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -593,4 +598,4 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
       )}
     </div>
   )
-}
+})
