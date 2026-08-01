@@ -309,22 +309,28 @@ function MarkdownContent({ md }: { md: string }) {
 }
 
 function renderInline(text: string): React.ReactNode {
-  // Bold + italic + links + inline code
+  // Bold + italic + images + links + clickable images + inline code
   const parts: React.ReactNode[] = []
   let remaining = text
   let key = 0
 
   while (remaining.length > 0) {
+    // Clickable image: [![alt](image-url)](link-url) — must be checked BEFORE regular image and link
+    const clickableImageMatch = remaining.match(/\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)/)
+    // Image: ![alt](image-url)
+    const imageMatch = remaining.match(/!\[([^\]]*)\]\(([^)]+)\)/)
     // Bold
     const boldMatch = remaining.match(/\*\*([^*]+)\*\*/)
     // Italic (single asterisk, not part of bold)
     const italicMatch = remaining.match(/\*([^*]+)\*/)
-    // Link
+    // Link (but NOT an image — image starts with ! which we handle separately)
     const linkMatch = remaining.match(/\[([^\]]+)\]\(([^)]+)\)/)
     // Code
     const codeMatch = remaining.match(/`([^`]+)`/)
 
     const matches = [
+      clickableImageMatch ? { type: 'clickableImage', match: clickableImageMatch, index: clickableImageMatch.index! } : null,
+      imageMatch ? { type: 'image', match: imageMatch, index: imageMatch.index! } : null,
       boldMatch ? { type: 'bold', match: boldMatch, index: boldMatch.index! } : null,
       italicMatch ? { type: 'italic', match: italicMatch, index: italicMatch.index! } : null,
       linkMatch ? { type: 'link', match: linkMatch, index: linkMatch.index! } : null,
@@ -343,7 +349,24 @@ function renderInline(text: string): React.ReactNode {
       parts.push(remaining.slice(0, first.index))
     }
 
-    if (first.type === 'bold') {
+    if (first.type === 'clickableImage') {
+      // [![alt](image-url)](link-url)
+      const alt = first.match[1]
+      const imageUrl = first.match[2]
+      const linkUrl = first.match[3]
+      parts.push(
+        <a key={key++} href={linkUrl} target={linkUrl.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer">
+          <img src={imageUrl} alt={alt} className="max-w-full h-auto rounded-lg my-2" loading="lazy" />
+        </a>
+      )
+    } else if (first.type === 'image') {
+      // ![alt](image-url)
+      const alt = first.match[1]
+      const imageUrl = first.match[2]
+      parts.push(
+        <img key={key++} src={imageUrl} alt={alt} className="max-w-full h-auto rounded-lg my-2" loading="lazy" />
+      )
+    } else if (first.type === 'bold') {
       parts.push(<strong key={key++}>{first.match[1]}</strong>)
     } else if (first.type === 'italic') {
       parts.push(<em key={key++}>{first.match[1]}</em>)
