@@ -353,17 +353,15 @@ function AffiliateLinkHelper({ onInsert }: { onInsert: (markdown: string) => voi
   const [productName, setProductName] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   // Parse ASIN from any Amazon URL format
-  // Handles: /dp/ASIN, /gp/product/ASIN, /exec/obidos/ASIN/, /ASIN/ at end
   function extractAsin(url: string): string | null {
     const patterns = [
       /\/dp\/([A-Z0-9]{10})(?:[/?]|$)/i,
       /\/gp\/product\/([A-Z0-9]{10})(?:[/?]|$)/i,
       /\/exec\/obidos\/ASIN\/([A-Z0-9]{10})(?:[/?]|$)/i,
       /\/ASIN\/([A-Z0-9]{10})(?:[/?]|$)/i,
-      /\/([A-Z0-9]{10})(?:[/?]|$)/i, // fallback: last path segment
+      /\/([A-Z0-9]{10})(?:[/?]|$)/i,
     ]
     for (const pattern of patterns) {
       const match = url.match(pattern)
@@ -379,30 +377,20 @@ function AffiliateLinkHelper({ onInsert }: { onInsert: (markdown: string) => voi
     return `https://www.amazon.com/dp/${asin}?tag=freedomwheels-20`
   }
 
-  // Generate the 3 Markdown formats
-  function generateMarkdown(): { textLink: string; imageLink: string; fullBlock: string } | null {
-    if (!rawUrl.trim()) return null
+  // Compute generated markdown + error as DERIVED values (not state)
+  // This avoids calling setState during render, which crashes React 19
+  const asin = rawUrl.trim() ? extractAsin(rawUrl) : null
+  const error = rawUrl.trim() && !asin ? 'Could not extract ASIN from URL. Make sure it\'s an Amazon product URL (e.g., https://www.amazon.com/dp/B0XYZ12345).' : null
 
-    const asin = extractAsin(rawUrl)
-    if (!asin) {
-      setError('Could not extract ASIN from URL. Make sure it\'s an Amazon product URL (e.g., https://www.amazon.com/dp/B0XYZ12345).')
-      return null
-    }
-    setError(null)
-
+  const generated = asin ? (() => {
     const affiliateUrl = buildAffiliateUrl(asin)
     const name = productName || `Amazon product ${asin}`
     const img = imageUrl || ''
 
-    // Type 1: Text link
     const textLink = `[${name}](${affiliateUrl})`
-
-    // Type 2: Image link (if image URL provided)
     const imageLink = img
       ? `[![${name}](${img})](${affiliateUrl})`
       : '(Add an image URL above to generate image link)'
-
-    // Type 3: Full product block
     const fullBlock = `### ${name}
 ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
 **ASIN:** ${asin}
@@ -410,9 +398,7 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
 **👉 [Check current price on Amazon →](${affiliateUrl})**`
 
     return { textLink, imageLink, fullBlock }
-  }
-
-  const generated = generateMarkdown()
+  })() : null
 
   function copyToClipboard(text: string, label: string) {
     navigator.clipboard.writeText(text).then(() => {
