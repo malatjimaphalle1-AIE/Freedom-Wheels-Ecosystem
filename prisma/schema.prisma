@@ -319,3 +319,24 @@ model ReferralVisit {
   @@index([utmSource])
   @@index([createdAt])
 }
+
+// Product of the Day — featured product on landing page
+// Admin sets one active product at a time. Old ones are kept for history.
+model ProductOfTheDay {
+  id            String   @id @default(cuid())
+  productName   String   // e.g. "Lenovo IdeaPad 3 (Ryzen 5)"
+  asin          String?  // Amazon ASIN (for affiliate link)
+  affiliateUrl  String   // full affiliate URL with tag
+  imageUrl      String?  // product image URL
+  description   String   // short pitch (1-2 sentences)
+  originalPrice String?  // e.g. "R13,999" (display string)
+  dealPrice     String?  // e.g. "R11,499" (display string, optional)
+  whyWeLikeIt   String?  // longer explanation of why it's recommended
+  category      String?  // e.g. "Laptops", "Networking"
+  isActive      Boolean  @default(false) // only one should be active at a time
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([createdAt])
+}

@@ -141,6 +141,7 @@ export default function Home() {
 
       <main className="flex-1">
         <Hero />
+        <ProductOfTheDaySection />
         <ProblemSection />
         <SolutionSection />
         <HowItWorks />
@@ -304,6 +305,131 @@ function Hero() {
               <Check className="h-4 w-4 text-emerald-600" /> Real external affiliate revenue
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ============================================================================
+// PRODUCT OF THE DAY
+// ============================================================================
+function ProductOfTheDaySection() {
+  const [product, setProduct] = useState<{
+    productName: string
+    asin: string | null
+    affiliateUrl: string
+    imageUrl: string | null
+    description: string
+    originalPrice: string | null
+    dealPrice: string | null
+    whyWeLikeIt: string | null
+    category: string | null
+  } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/product-of-the-day')
+      .then(r => r.json())
+      .then(data => setProduct(data.product || null))
+      .catch(() => {})
+  }, [])
+
+  if (!product) return null // hide section if no active product
+
+  return (
+    <section className="border-b bg-gradient-to-br from-emerald-50 to-background dark:from-emerald-950/20">
+      <div className="container mx-auto px-4 py-12 md:py-16">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-6">
+            <Badge className="bg-emerald-600 text-white mb-2">
+              ⭐ Product of the Day
+            </Badge>
+            <p className="text-xs text-muted-foreground">
+              Our daily pick — hand-selected by the Freedom Wheels team
+            </p>
+          </div>
+
+          <Card className="overflow-hidden border-emerald-200 dark:border-emerald-800 shadow-lg">
+            <div className="grid md:grid-cols-2 gap-0">
+              {/* Image */}
+              {product.imageUrl && (
+                <div className="aspect-square md:aspect-auto bg-muted flex items-center justify-center p-6">
+                  <a
+                    href={product.affiliateUrl}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow sponsored"
+                    className="block w-full h-full flex items-center justify-center"
+                  >
+                    <img
+                      src={product.imageUrl}
+                      alt={product.productName}
+                      className="max-w-full max-h-64 object-contain hover:scale-105 transition-transform"
+                      loading="lazy"
+                    />
+                  </a>
+                </div>
+              )}
+
+              {/* Content */}
+              <div className="p-6 md:p-8 flex flex-col justify-center">
+                {product.category && (
+                  <Badge variant="outline" className="self-start mb-2 text-xs">
+                    {product.category}
+                  </Badge>
+                )}
+                <h3 className="text-xl md:text-2xl font-bold mb-2">
+                  {product.productName}
+                </h3>
+                <p className="text-muted-foreground mb-4 leading-relaxed">
+                  {product.description}
+                </p>
+
+                {/* Pricing */}
+                {(product.originalPrice || product.dealPrice) && (
+                  <div className="flex items-baseline gap-2 mb-4">
+                    {product.dealPrice && (
+                      <span className="text-2xl font-bold text-emerald-600">
+                        {product.dealPrice}
+                      </span>
+                    )}
+                    {product.originalPrice && (
+                      <span className="text-sm text-muted-foreground line-through">
+                        {product.originalPrice}
+                      </span>
+                    )}
+                    {product.dealPrice && product.originalPrice && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        Deal
+                      </Badge>
+                    )}
+                  </div>
+                )}
+
+                {/* Why we like it */}
+                {product.whyWeLikeIt && (
+                  <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded mb-4 border-l-2 border-emerald-500">
+                    <span className="font-medium text-foreground">Why we like it: </span>
+                    {product.whyWeLikeIt}
+                  </div>
+                )}
+
+                {/* CTA */}
+                <Button asChild size="lg" className="w-full sm:w-auto">
+                  <a
+                    href={product.affiliateUrl}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow sponsored"
+                  >
+                    Check price on Amazon →
+                  </a>
+                </Button>
+
+                <p className="text-xs text-muted-foreground mt-3">
+                  As an Amazon Associate, Freedom Wheels earns from qualifying purchases.
+                </p>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
     </section>
