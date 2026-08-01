@@ -367,9 +367,11 @@ function renderInline(text: string): React.ReactNode {
         <img key={key++} src={imageUrl} alt={alt} className="max-w-full h-auto rounded-lg my-2" loading="lazy" />
       )
     } else if (first.type === 'bold') {
-      parts.push(<strong key={key++}>{first.match[1]}</strong>)
+      // Recursively render the inner content so links/images inside bold work
+      parts.push(<strong key={key++}>{renderInline(first.match[1])}</strong>)
     } else if (first.type === 'italic') {
-      parts.push(<em key={key++}>{first.match[1]}</em>)
+      // Recursively render the inner content so links/images inside italic work
+      parts.push(<em key={key++}>{renderInline(first.match[1])}</em>)
     } else if (first.type === 'link') {
       parts.push(<a key={key++} href={first.match[2]} target={first.match[2].startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className="text-emerald-600 hover:underline">{first.match[1]}</a>)
     } else if (first.type === 'code') {
