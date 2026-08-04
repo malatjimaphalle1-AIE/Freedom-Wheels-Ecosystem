@@ -91,7 +91,7 @@ export default function AdminGuidesPage() {
     loadPartners()
   }
 
-  function startEdit(g: Guide) {
+  async function startEdit(g: Guide) {
     setEditing(g)
     // Pre-populate from the list data (always available)
     setTitle(g.title)
@@ -107,33 +107,35 @@ export default function AdminGuidesPage() {
     setShowForm(true)
     loadPartners()
 
-    // Fetch full guide details (content, tags, cover image, partners) via admin API
-    // The admin API returns all guides including drafts (unpublished)
-    const headers: Record<string, string> = {}
-    if (apiKey) headers['X-Admin-Key'] = apiKey
+    // Fetch full guide details via admin API (works for drafts + published)
+    try {
+      const headers: Record<string, string> = {}
+      if (apiKey) headers['X-Admin-Key'] = apiKey
 
-    fetch(`/api/admin/guides/${g.id}`, { headers })
-      .then(r => r.json())
-      .then(data => {
-        if (!r.ok) {
-          setError(data.error || 'Failed to load guide details')
-          return
-        }
-        const guide = data.guide
-        if (guide) {
-          setTitle(guide.title || g.title)
-          setSlug(guide.slug || g.slug)
-          setExcerpt(guide.excerpt || g.excerpt || '')
-          setContentMarkdown(guide.contentMarkdown || '')
-          setCategory(guide.category || g.category || '')
-          setTags(guide.tags || '')
-          setCoverImageUrl(guide.coverImageUrl || '')
-          setIsMemberOnly(guide.isMemberOnly ?? false)
-          setIsPublished(guide.isPublished ?? false)
-          setSelectedPartnerIds((guide.partnerLinks || []).map((pl: { partnerId: string }) => pl.partnerId))
-        }
-      })
-      .catch(err => setError(err.message))
+      const res = await fetch(`/api/admin/guides/${g.id}`, { headers })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Failed to load guide details')
+        return
+      }
+
+      const guide = data.guide
+      if (guide) {
+        setTitle(guide.title || g.title)
+        setSlug(guide.slug || g.slug)
+        setExcerpt(guide.excerpt || g.excerpt || '')
+        setContentMarkdown(guide.contentMarkdown || '')
+        setCategory(guide.category || g.category || '')
+        setTags(guide.tags || '')
+        setCoverImageUrl(guide.coverImageUrl || '')
+        setIsMemberOnly(guide.isMemberOnly ?? false)
+        setIsPublished(guide.isPublished ?? false)
+        setSelectedPartnerIds((guide.partnerLinks || []).map((pl: { partnerId: string }) => pl.partnerId))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load guide')
+    }
   }
 
   async function saveGuide() {
