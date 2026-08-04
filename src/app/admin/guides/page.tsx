@@ -93,22 +93,45 @@ export default function AdminGuidesPage() {
 
   function startEdit(g: Guide) {
     setEditing(g)
-    // Need to fetch full guide for content
-    fetch(`/api/guides/${g.slug}`)
+    // Pre-populate from the list data (always available)
+    setTitle(g.title)
+    setSlug(g.slug)
+    setExcerpt(g.excerpt || '')
+    setCategory(g.category || '')
+    setIsMemberOnly(g.isMemberOnly ?? false)
+    setIsPublished(g.isPublished ?? false)
+    setContentMarkdown('')
+    setTags('')
+    setCoverImageUrl('')
+    setSelectedPartnerIds([])
+    setShowForm(true)
+    loadPartners()
+
+    // Fetch full guide details (content, tags, cover image, partners) via admin API
+    // The admin API returns all guides including drafts (unpublished)
+    const headers: Record<string, string> = {}
+    if (apiKey) headers['X-Admin-Key'] = apiKey
+
+    fetch(`/api/admin/guides/${g.id}`, { headers })
       .then(r => r.json())
       .then(data => {
-        setTitle(data.guide.title || g.title)
-        setSlug(data.guide.slug || g.slug)
-        setExcerpt(data.guide.excerpt || g.excerpt)
-        setContentMarkdown(data.guide.content || '')
-        setCategory(data.guide.category || g.category)
-        setTags(data.guide.tags || '')
-        setCoverImageUrl(data.guide.coverImageUrl || '')
-        setIsMemberOnly(data.guide.isMemberOnly ?? false)
-        setIsPublished(data.guide.isPublished ?? false)
-        setSelectedPartnerIds((data.partners || []).map((p: { id: string }) => p.id))
-        setShowForm(true)
-        loadPartners()
+        if (!r.ok) {
+          setError(data.error || 'Failed to load guide details')
+          return
+        }
+        const guide = data.guide
+        if (guide) {
+          setTitle(guide.title || g.title)
+          setSlug(guide.slug || g.slug)
+          setExcerpt(guide.excerpt || g.excerpt || '')
+          setContentMarkdown(guide.contentMarkdown || '')
+          setCategory(guide.category || g.category || '')
+          setTags(guide.tags || '')
+          setCoverImageUrl(guide.coverImageUrl || '')
+          setIsMemberOnly(guide.isMemberOnly ?? false)
+          setIsPublished(guide.isPublished ?? false)
+          setSelectedPartnerIds((guide.partnerLinks || []).map((pl: { partnerId: string }) => pl.partnerId))
+        }
       })
       .catch(err => setError(err.message))
   }

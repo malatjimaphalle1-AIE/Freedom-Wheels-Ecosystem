@@ -2,6 +2,52 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth } from '@/lib/admin-auth'
 import { db } from '@/lib/db'
 
+// GET /api/admin/guides/{id}
+// Returns a single guide with all fields (including contentMarkdown + partnerLinks).
+// Used by the admin guide editor when editing a guide.
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authError = await checkAdminAuth(req)
+  if (authError) return authError
+
+  const { id } = await params
+
+  const guide = await db.guide.findUnique({
+    where: { id },
+    include: {
+      partnerLinks: {
+        select: {
+          partnerId: true,
+          partner: {
+            select: { id: true, name: true }
+          }
+        }
+      }
+    }
+  })
+
+  if (!guide) {
+    return NextResponse.json({ error: 'Guide not found' }, { status: 404 })
+  }
+
+  return NextResponse.json({
+    guide: {
+      id: guide.id,
+      slug: guide.slug,
+      title: guide.title,
+      excerpt: guide.excerpt,
+      contentMarkdown: guide.contentMarkdown,
+      coverImageUrl: guide.coverImageUrl,
+      category: guide.category,
+      tags: guide.tags,
+      isMemberOnly: guide.isMemberOnly,
+      isPublished: guide.isPublished,
+      publishedAt: guide.publishedAt,
+      viewCount: guide.viewCount,
+      partnerLinks: guide.partnerLinks,
+    }
+  })
+}
+
 // PATCH /api/admin/guides/{id}
 // Update an existing guide.
 
