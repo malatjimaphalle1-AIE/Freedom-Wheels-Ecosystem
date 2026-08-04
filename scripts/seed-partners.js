@@ -54,6 +54,15 @@ const PARTNERS = [
     description: 'Email marketing platform for creators. Recurring commissions create predictable monthly revenue.',
     displayOrder: 50,
   },
+  {
+    name: 'Lulalend',
+    url: 'https://www.lulalend.co.za',
+    affiliateUrl: 'https://www.lulalend.co.za/?a=sGfGBtmv',
+    commissionRate: 'Commission on successful referrals',
+    category: 'Business Funding',
+    description: 'Fast and flexible business funding for SA SMEs and sole traders that traditional lenders often can\'t serve. Help your clients secure funding and grow their businesses.',
+    displayOrder: 60,
+  },
 ]
 
 async function main() {

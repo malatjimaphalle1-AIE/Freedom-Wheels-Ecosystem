@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, memo, useCallback } from 'react'
+import { useState, useEffect, memo, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -347,106 +347,135 @@ export default function AdminGuidesPage() {
 }
 
 // ============================================================================
-// AFFILIATE LINK HELPER
+// AFFILIATE LINK HELPER (Multi-Partner)
 // ============================================================================
-// Pastes a raw Amazon URL → extracts ASIN → adds freedomwheels-20 tag
+// Accepts affiliate links from ANY partner (Amazon, Lulalend, Hostinger, etc.)
+// For Amazon: auto-extracts ASIN + adds freedomwheels-20 tag
+// For other partners: uses the pasted affiliate URL directly
 // Generates 3 Markdown formats: text link, image link, full product block
-// User clicks "Insert" to append the Markdown to the guide content.
+// Uses useMemo for derived values to prevent INP issues
+
+const PARTNER_OPTIONS = [
+  { id: 'amazon', name: 'Amazon Associates', urlPrefix: 'https://www.amazon.com', placeholder: 'https://www.amazon.com/dp/B0XYZ12345', tag: 'freedomwheels-20' },
+  { id: 'lulalend', name: 'Lulalend (Business Funding)', urlPrefix: 'https://www.lulalend.co.za', placeholder: 'https://www.lulalend.co.za/?a=sGfGBtmv', tag: null },
+  { id: 'hostinger', name: 'Hostinger (Hosting)', urlPrefix: 'https://www.hostinger.com', placeholder: 'https://www.hostinger.com/affiliates?ref=freedomwheels', tag: null },
+  { id: 'namecheap', name: 'Namecheap (Domains)', urlPrefix: 'https://www.namecheap.com', placeholder: 'https://www.namecheap.com/affiliates?ref=freedomwheels', tag: null },
+  { id: 'canva', name: 'Canva (Design)', urlPrefix: 'https://www.canva.com', placeholder: 'https://www.canva.com/affiliates?ref=freedomwheels', tag: null },
+  { id: 'convertkit', name: 'ConvertKit (Email)', urlPrefix: 'https://convertkit.com', placeholder: 'https://convertkit.com/affiliates?ref=freedomwheels', tag: null },
+  { id: 'custom', name: 'Custom / Other', urlPrefix: '', placeholder: 'https://your-affiliate-link.com/?ref=yourcode', tag: null },
+] as const
+
+function extractAsin(url: string): string | null {
+  const patterns = [
+    /\/dp\/([A-Z0-9]{10})(?:[/?]|$)/i,
+    /\/gp\/product\/([A-Z0-9]{10})(?:[/?]|$)/i,
+    /\/exec\/obidos\/ASIN\/([A-Z0-9]{10})(?:[/?]|$)/i,
+    /\/ASIN\/([A-Z0-9]{10})(?:[/?]|$)/i,
+    /\/([A-Z0-9]{10})(?:[/?]|$)/i,
+  ]
+  for (const pattern of patterns) {
+    const match = url.match(pattern)
+    if (match && match[1] && match[1].length === 10) {
+      return match[1]
+    }
+  }
+  return null
+}
+
+function isValidImageUrl(url: string): boolean {
+  if (!url) return false
+  return (
+    url.startsWith('https://m.media-amazon.com/images/I/') ||
+    url.startsWith('https://images-na.ssl-images-amazon.com/') ||
+    /\.(jpg|jpeg|png|webp|gif|svg)(\?|$)/i.test(url)
+  )
+}
+
+function optimizeImageUrl(url: string): string {
+  return url
+    .replace(/\._AC_SL\d+_/, '._SL500_')
+    .replace(/\._SL\d+_/, '._SL500_')
+}
 
 const AffiliateLinkHelper = memo(function AffiliateLinkHelper({ onInsert }: { onInsert: (markdown: string) => void }) {
+  const [partnerId, setPartnerId] = useState<string>('amazon')
   const [rawUrl, setRawUrl] = useState('')
   const [productName, setProductName] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
 
-  // Parse ASIN from any Amazon URL format
-  function extractAsin(url: string): string | null {
-    const patterns = [
-      /\/dp\/([A-Z0-9]{10})(?:[/?]|$)/i,
-      /\/gp\/product\/([A-Z0-9]{10})(?:[/?]|$)/i,
-      /\/exec\/obidos\/ASIN\/([A-Z0-9]{10})(?:[/?]|$)/i,
-      /\/ASIN\/([A-Z0-9]{10})(?:[/?]|$)/i,
-      /\/([A-Z0-9]{10})(?:[/?]|$)/i,
-    ]
-    for (const pattern of patterns) {
-      const match = url.match(pattern)
-      if (match && match[1] && match[1].length === 10) {
-        return match[1]
-      }
+  const partner = PARTNER_OPTIONS.find(p => p.id === partnerId)!
+
+  // Memoize all derived values to prevent unnecessary re-computation (INP fix)
+  const asin = useMemo(() => {
+    if (partnerId !== 'amazon') return null
+    return rawUrl.trim() ? extractAsin(rawUrl) : null
+  }, [rawUrl, partnerId])
+
+  const finalAffiliateUrl = useMemo(() => {
+    if (partnerId === 'amazon' && asin) {
+      return `https://www.amazon.com/dp/${asin}?tag=${partner.tag}`
+    }
+    return rawUrl.trim() || ''
+  }, [partnerId, asin, rawUrl, partner.tag])
+
+  const urlError = useMemo(() => {
+    if (!rawUrl.trim()) return null
+    if (partnerId === 'amazon' && !asin) {
+      return 'Could not extract ASIN from URL. Make sure it\'s an Amazon product URL (e.g., https://www.amazon.com/dp/B0XYZ12345).'
     }
     return null
-  }
+  }, [rawUrl, partnerId, asin])
 
-  // Build the affiliate URL from ASIN
-  function buildAffiliateUrl(asin: string): string {
-    return `https://www.amazon.com/dp/${asin}?tag=freedomwheels-20`
-  }
+  const imageError = useMemo(() => {
+    if (!imageUrl.trim()) return null
+    if (!isValidImageUrl(imageUrl)) {
+      return 'This doesn\'t look like an image URL. It should end in .jpg/.png/.webp or be an Amazon image URL (m.media-amazon.com/images/I/...).'
+    }
+    return null
+  }, [imageUrl])
 
-  // Auto-downsize Amazon image URLs from SL1500 to SL500 for faster loading
-  function optimizeImageUrl(url: string): string {
-    return url
-      .replace(/\._AC_SL\d+_/, '._SL500_')
-      .replace(/\._SL\d+_/, '._SL500_')
-  }
+  const optimizedImageUrl = useMemo(() => {
+    if (!imageUrl.trim() || imageError) return ''
+    return optimizeImageUrl(imageUrl)
+  }, [imageUrl, imageError])
 
-  // Validate that a URL looks like an actual image URL (not a webpage)
-  function isValidImageUrl(url: string): boolean {
-    if (!url) return false
-    // Must be an Amazon image URL or end with a common image extension
-    return (
-      url.startsWith('https://m.media-amazon.com/images/I/') ||
-      /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url)
-    )
-  }
+  const generated = useMemo(() => {
+    if (!finalAffiliateUrl || urlError) return null
 
-  // Compute generated markdown + errors as DERIVED values (not state)
-  const asin = rawUrl.trim() ? extractAsin(rawUrl) : null
-  const urlError = rawUrl.trim() && !asin ? 'Could not extract ASIN from URL. Make sure it\'s an Amazon product URL (e.g., https://www.amazon.com/dp/B0XYZ12345).' : null
-  const imageError = imageUrl.trim() && !isValidImageUrl(imageUrl)
-    ? 'This doesn\'t look like an image URL. Image URLs should start with https://m.media-amazon.com/images/I/ or end in .jpg/.png. You may have pasted the product page URL instead of the image URL.'
-    : null
+    const name = productName || (asin ? `Amazon product ${asin}` : partner.name)
+    const img = optimizedImageUrl
 
-  // Auto-optimize the image URL if it's valid
-  const optimizedImageUrl = imageUrl.trim() && isValidImageUrl(imageUrl) ? optimizeImageUrl(imageUrl) : imageUrl
-
-  const generated = asin ? (() => {
-    const affiliateUrl = buildAffiliateUrl(asin)
-    const name = productName || `Amazon product ${asin}`
-    const img = (optimizedImageUrl.trim() && !imageError) ? optimizedImageUrl : ''
-
-    const textLink = `[${name}](${affiliateUrl})`
+    const textLink = `[${name}](${finalAffiliateUrl})`
     const imageLink = img
-      ? `[![${name}](${img})](${affiliateUrl})`
+      ? `[![${name}](${img})](${finalAffiliateUrl})`
       : '(Add a valid image URL above to generate image link)'
-    const fullBlock = `### ${name}
-${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
-**ASIN:** ${asin}
 
-**👉 [Check current price on Amazon →](${affiliateUrl})**`
+    const isAmazon = partnerId === 'amazon'
+    const fullBlock = `### ${name}
+${img ? `\n[![${name}](${img})](${finalAffiliateUrl})\n` : ''}
+${isAmazon ? `**ASIN:** ${asin}\n\n` : ''}**👉 [Check current price${isAmazon ? ' on Amazon' : ''} →](${finalAffiliateUrl})**`
 
     return { textLink, imageLink, fullBlock }
-  })() : null
+  }, [finalAffiliateUrl, urlError, productName, asin, partner.name, optimizedImageUrl, partnerId])
 
-  function copyToClipboard(text: string, label: string) {
+  const handleCopy = useCallback((text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(label)
       setTimeout(() => setCopied(null), 2000)
     })
-  }
+  }, [])
 
-  function insert(markdown: string, label: string) {
+  const handleInsert = useCallback((markdown: string, label: string) => {
     onInsert(markdown)
     setCopied(label + ' inserted!')
     setTimeout(() => setCopied(null), 2000)
-  }
+  }, [onInsert])
 
-  function openAmazonPage() {
-    if (asin) {
-      window.open(`https://www.amazon.com/dp/${asin}`, '_blank', 'noopener,noreferrer')
-    } else {
-      window.open('https://www.amazon.com', '_blank', 'noopener,noreferrer')
-    }
-  }
+  const openPartnerPage = useCallback(() => {
+    const url = asin ? `https://www.amazon.com/dp/${asin}` : partner.urlPrefix || 'https://www.amazon.com'
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }, [asin, partner.urlPrefix])
 
   return (
     <div className="border rounded-lg p-4 bg-muted/30">
@@ -454,21 +483,37 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
         <Link2 className="h-4 w-4" /> Affiliate Link Helper
       </div>
       <p className="text-xs text-muted-foreground mb-3">
-        Paste an Amazon product URL. We&apos;ll extract the ASIN, add your <code className="bg-muted px-1 rounded">freedomwheels-20</code> tag, and generate ready-to-use Markdown.
+        Select a partner, paste your affiliate link, and generate ready-to-use Markdown. For Amazon, we auto-extract the ASIN and add your <code className="bg-muted px-1 rounded">freedomwheels-20</code> tag.
       </p>
+
+      {/* Partner selector */}
+      <div className="mb-3">
+        <Label className="text-xs">Partner *</Label>
+        <select
+          value={partnerId}
+          onChange={(e) => { setPartnerId(e.target.value); setRawUrl('') }}
+          className="mt-1 w-full px-3 py-2 border rounded-md bg-background text-sm"
+        >
+          {PARTNER_OPTIONS.map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </div>
 
       {/* Input fields */}
       <div className="space-y-2 mb-4">
         <div>
           <div className="flex items-center justify-between">
-            <Label className="text-xs">Amazon product URL *</Label>
-            {asin && (
+            <Label className="text-xs">
+              {partnerId === 'amazon' ? 'Amazon product URL *' : 'Your affiliate URL *'}
+            </Label>
+            {partner.urlPrefix && (
               <button
                 type="button"
-                onClick={openAmazonPage}
+                onClick={openPartnerPage}
                 className="text-xs text-emerald-600 hover:underline inline-flex items-center gap-1"
               >
-                <ExternalLink className="h-3 w-3" /> Open Amazon page
+                <ExternalLink className="h-3 w-3" /> Open {partner.name.split(' ')[0]}
               </button>
             )}
           </div>
@@ -476,13 +521,13 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
             type="url"
             value={rawUrl}
             onChange={(e) => setRawUrl(e.target.value)}
-            placeholder="https://www.amazon.com/dp/B0XYZ12345"
+            placeholder={partner.placeholder}
             className="mt-1"
           />
         </div>
         <div className="grid sm:grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs">Product name (optional)</Label>
+            <Label className="text-xs">Product/service name (optional)</Label>
             <Input
               type="text"
               value={productName}
@@ -497,13 +542,11 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
               type="url"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://m.media-amazon.com/images/I/..."
+              placeholder="https://... (right-click image → copy address)"
               className={`mt-1 ${imageError ? 'border-rose-400' : ''}`}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              On the Amazon page: right-click the <strong>product image</strong> → &quot;Copy image address&quot; → paste here.
-              <br />
-              <span className="text-xs">URL must start with <code>m.media-amazon.com/images/I/</code></span>
+              Right-click any image → &quot;Copy image address&quot; → paste here
             </p>
           </div>
         </div>
@@ -513,7 +556,17 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
           <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded p-3 text-xs">
             <div className="font-medium text-emerald-700 dark:text-emerald-400 mb-1">✓ ASIN detected: {asin}</div>
             <div className="text-muted-foreground">
-              To add an image: click <strong>&quot;Open Amazon page&quot;</strong> above → right-click the main product photo → &quot;Copy image address&quot; → paste into the Image URL field.
+              To add an image: click <strong>&quot;Open Amazon&quot;</strong> above → right-click the main product photo → &quot;Copy image address&quot; → paste into the Image URL field.
+            </div>
+          </div>
+        )}
+
+        {/* Non-Amazon hint */}
+        {partnerId !== 'amazon' && partnerId !== 'custom' && (
+          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded p-3 text-xs">
+            <div className="font-medium text-blue-700 dark:text-blue-400 mb-1">💡 {partner.name}</div>
+            <div className="text-muted-foreground">
+              Paste your full affiliate URL (including your referral code) into the field above. The helper will generate Markdown with your link.
             </div>
           </div>
         )}
@@ -539,10 +592,10 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-medium text-muted-foreground">Text link</div>
               <div className="flex gap-1">
-                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => copyToClipboard(generated.textLink, 'Text link copied')}>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleCopy(generated.textLink, 'Text link copied')}>
                   {copied === 'Text link copied' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                 </Button>
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => insert(generated.textLink, 'Text link')}>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleInsert(generated.textLink, 'Text link')}>
                   Insert
                 </Button>
               </div>
@@ -555,12 +608,12 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-medium text-muted-foreground">Image link (clickable image)</div>
               <div className="flex gap-1">
-                {imageUrl && (
+                {optimizedImageUrl && (
                   <>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => copyToClipboard(generated.imageLink, 'Image link copied')}>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleCopy(generated.imageLink, 'Image link copied')}>
                       {copied === 'Image link copied' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                     </Button>
-                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => insert(generated.imageLink, 'Image link')}>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleInsert(generated.imageLink, 'Image link')}>
                       Insert
                     </Button>
                   </>
@@ -568,8 +621,8 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
               </div>
             </div>
             <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 p-2 rounded">{generated.imageLink}</pre>
-            {!imageUrl && (
-              <p className="text-xs text-muted-foreground mt-1">Add an image URL above to enable this format.</p>
+            {!optimizedImageUrl && (
+              <p className="text-xs text-muted-foreground mt-1">Add a valid image URL above to enable this format.</p>
             )}
           </div>
 
@@ -578,10 +631,10 @@ ${img ? `\n[![${name}](${img})](${affiliateUrl})\n` : ''}
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-medium text-muted-foreground">Full product block (recommended)</div>
               <div className="flex gap-1">
-                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => copyToClipboard(generated.fullBlock, 'Full block copied')}>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleCopy(generated.fullBlock, 'Full block copied')}>
                   {copied === 'Full block copied' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                 </Button>
-                <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => insert(generated.fullBlock, 'Full block')}>
+                <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => handleInsert(generated.fullBlock, 'Full block')}>
                   <Plus className="h-3 w-3 mr-1" /> Insert
                 </Button>
               </div>
