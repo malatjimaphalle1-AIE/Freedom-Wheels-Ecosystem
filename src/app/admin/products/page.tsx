@@ -22,6 +22,7 @@ interface Product {
   whyWeLikeIt: string | null
   category: string | null
   isActive: boolean
+  scheduledAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -46,6 +47,7 @@ export default function AdminProductsPage() {
   const [whyWeLikeIt, setWhyWeLikeIt] = useState('')
   const [category, setCategory] = useState('')
   const [isActive, setIsActive] = useState(false)
+  const [scheduledAt, setScheduledAt] = useState('')
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -82,7 +84,7 @@ export default function AdminProductsPage() {
     setEditing(null)
     setProductName(''); setAsin(''); setAffiliateUrl(''); setImageUrl('')
     setDescription(''); setOriginalPrice(''); setDealPrice(''); setWhyWeLikeIt('')
-    setCategory(''); setIsActive(false)
+    setCategory(''); setIsActive(false); setScheduledAt('')
     setShowForm(true)
   }
 
@@ -98,6 +100,7 @@ export default function AdminProductsPage() {
     setWhyWeLikeIt(p.whyWeLikeIt || '')
     setCategory(p.category || '')
     setIsActive(p.isActive)
+    setScheduledAt(p.scheduledAt ? new Date(p.scheduledAt).toISOString().slice(0, 16) : '')
     setShowForm(true)
   }
 
@@ -108,6 +111,7 @@ export default function AdminProductsPage() {
         productName, asin: asin || undefined, affiliateUrl, imageUrl: imageUrl || undefined,
         description, originalPrice: originalPrice || undefined, dealPrice: dealPrice || undefined,
         whyWeLikeIt: whyWeLikeIt || undefined, category: category || undefined, isActive,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
       }
       const url = editing ? `/api/admin/product-of-the-day/${editing.id}` : '/api/admin/product-of-the-day'
       const method = editing ? 'PATCH' : 'POST'
@@ -275,6 +279,18 @@ export default function AdminProductsPage() {
                 <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
                 <span>Set as active Product of the Day (deactivates all others)</span>
               </label>
+              <div>
+                <Label>Schedule for later (optional)</Label>
+                <Input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Set a date/time for this product to auto-activate. The cron job checks hourly and activates scheduled products automatically.
+                </p>
+              </div>
               <div className="flex gap-2 pt-2">
                 <Button onClick={saveProduct} disabled={loading || !productName || !affiliateUrl || !description}>
                   <Save className="h-4 w-4 mr-1" /> {loading ? 'Saving…' : 'Save product'}

@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const {
       title, slug: providedSlug, excerpt, contentMarkdown,
-      category, tags = '', coverImageUrl = null,
+      category, tags = '', coverImageUrl = null, metaDescription = null,
       isMemberOnly = false, isPublished = false, partnerIds = []
     } = body
 
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
         category,
         tags,
         coverImageUrl,
+        metaDescription,
         isMemberOnly,
         isPublished,
         publishedAt: isPublished ? now : null,

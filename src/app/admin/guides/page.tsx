@@ -47,6 +47,7 @@ export default function AdminGuidesPage() {
   const [category, setCategory] = useState('')
   const [tags, setTags] = useState('')
   const [coverImageUrl, setCoverImageUrl] = useState('')
+  const [metaDescription, setMetaDescription] = useState('')
   const [isMemberOnly, setIsMemberOnly] = useState(false)
   const [isPublished, setIsPublished] = useState(false)
   const [selectedPartnerIds, setSelectedPartnerIds] = useState<string[]>([])
@@ -85,7 +86,7 @@ export default function AdminGuidesPage() {
   function startNew() {
     setEditing(null)
     setTitle(''); setSlug(''); setExcerpt(''); setContentMarkdown('')
-    setCategory(''); setTags(''); setCoverImageUrl('')
+    setCategory(''); setTags(''); setCoverImageUrl(''); setMetaDescription('')
     setIsMemberOnly(false); setIsPublished(false); setSelectedPartnerIds([])
     setShowForm(true)
     loadPartners()
@@ -103,9 +104,8 @@ export default function AdminGuidesPage() {
     setContentMarkdown('')
     setTags('')
     setCoverImageUrl('')
+    setMetaDescription('')
     setSelectedPartnerIds([])
-    setShowForm(true)
-    loadPartners()
 
     // Fetch full guide details via admin API (works for drafts + published)
     try {
@@ -129,6 +129,7 @@ export default function AdminGuidesPage() {
         setCategory(guide.category || g.category || '')
         setTags(guide.tags || '')
         setCoverImageUrl(guide.coverImageUrl || '')
+        setMetaDescription(guide.metaDescription || '')
         setIsMemberOnly(guide.isMemberOnly ?? false)
         setIsPublished(guide.isPublished ?? false)
         setSelectedPartnerIds((guide.partnerLinks || []).map((pl: { partnerId: string }) => pl.partnerId))
@@ -143,7 +144,7 @@ export default function AdminGuidesPage() {
     try {
       const payload = {
         title, slug: slug || undefined, excerpt, contentMarkdown,
-        category, tags, coverImageUrl: coverImageUrl || null,
+        category, tags, coverImageUrl: coverImageUrl || null, metaDescription: metaDescription || null,
         isMemberOnly, isPublished, partnerIds: selectedPartnerIds
       }
       const url = editing ? `/api/admin/guides/${editing.id}` : '/api/admin/guides'
@@ -257,6 +258,19 @@ export default function AdminGuidesPage() {
               <div>
                 <Label>Excerpt * (short summary shown in listings)</Label>
                 <Textarea value={excerpt} onChange={(e) => setExcerpt(e.target.value)} rows={2} />
+              </div>
+              <div>
+                <Label>SEO meta description (optional, 155 chars max)</Label>
+                <Textarea
+                  value={metaDescription}
+                  onChange={(e) => setMetaDescription(e.target.value)}
+                  rows={2}
+                  maxLength={160}
+                  placeholder="Best budget laptops for SA freelancers 2026 — tested 8 machines under R15,000. Honest reviews with Amazon links."
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {metaDescription.length}/155 chars — used in Google search results + social media previews. Leave blank to use the excerpt.
+                </p>
               </div>
               <div>
                 <Label>Content (Markdown) *</Label>

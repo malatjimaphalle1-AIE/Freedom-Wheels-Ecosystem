@@ -37,6 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       excerpt: guide.excerpt,
       contentMarkdown: guide.contentMarkdown,
       coverImageUrl: guide.coverImageUrl,
+      metaDescription: guide.metaDescription,
       category: guide.category,
       tags: guide.tags,
       isMemberOnly: guide.isMemberOnly,
@@ -61,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json()
     const {
       title, slug, excerpt, contentMarkdown,
-      category, tags, coverImageUrl,
+      category, tags, coverImageUrl, metaDescription,
       isMemberOnly, isPublished, partnerIds
     } = body
 
@@ -95,6 +96,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(category !== undefined && { category }),
         ...(tags !== undefined && { tags }),
         ...(coverImageUrl !== undefined && { coverImageUrl }),
+        ...(metaDescription !== undefined && { metaDescription }),
         ...(isMemberOnly !== undefined && { isMemberOnly }),
         ...(isPublished !== undefined && { isPublished, publishedAt: newPublishedAt }),
       },

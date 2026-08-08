@@ -255,6 +255,7 @@ model Guide {
   coverImageUrl   String?
   category        String   // e.g. "Laptops", "Books", "Hosting", "Design Tools"
   tags            String   // comma-separated tags
+  metaDescription String?  // SEO meta description (155 chars max) — used in search results + social previews
   isMemberOnly    Boolean  @default(false) // if true, only logged-in members can read full content
   isPublished     Boolean  @default(false)
   publishedAt     DateTime?
@@ -334,9 +335,45 @@ model ProductOfTheDay {
   whyWeLikeIt   String?  // longer explanation of why it's recommended
   category      String?  // e.g. "Laptops", "Networking"
   isActive      Boolean  @default(false) // only one should be active at a time
+  scheduledAt   DateTime? // when this product should auto-activate (null = no scheduling)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([isActive])
+  @@index([scheduledAt])
   @@index([createdAt])
+}
+
+// Newsletter subscribers — email capture on landing page
+// "Get notified when we publish new guides"
+model NewsletterSubscriber {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  source      String?  // 'landing_page' | 'guide' | 'member' etc.
+  utmSource   String?
+  utmCampaign String?
+  isActive    Boolean  @default(true) // can unsubscribe
+  createdAt   DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+}
+
+// Page views — for analytics dashboard (daily/weekly trends)
+model PageView {
+  id          String   @id @default(cuid())
+  path        String   // e.g. '/', '/guides/best-laptops', '/member'
+  userAgent   String?
+  referrer    String?
+  ipAddress   String?  // hashed for privacy
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  userId      String?  // null if anonymous
+  createdAt   DateTime @default(now())
+
+  @@index([path])
+  @@index([createdAt])
+  @@index([utmSource])
 }

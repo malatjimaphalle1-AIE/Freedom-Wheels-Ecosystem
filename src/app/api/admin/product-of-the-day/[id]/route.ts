@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const {
       productName, asin, affiliateUrl, imageUrl,
       description, originalPrice, dealPrice, whyWeLikeIt,
-      category, isActive,
+      category, isActive, scheduledAt,
     } = body
 
     const existing = await db.productOfTheDay.findUnique({ where: { id } })
@@ -44,6 +44,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(whyWeLikeIt !== undefined && { whyWeLikeIt: whyWeLikeIt || null }),
         ...(category !== undefined && { category: category || null }),
         ...(isActive !== undefined && { isActive }),
+        ...(scheduledAt !== undefined && { scheduledAt: scheduledAt ? new Date(scheduledAt) : null }),
       },
     })
 

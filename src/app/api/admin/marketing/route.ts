@@ -85,6 +85,65 @@ export async function GET(req: NextRequest) {
     where: { referredById: { not: null } },
   })
 
+  // Page view trends (last 30 days, grouped by day)
+  const thirtyDaysAgoDate = new Date()
+  thirtyDaysAgoDate.setDate(thirtyDaysAgoDate.getDate() - 30)
+
+  const pageViews = await db.pageView.findMany({
+    where: { createdAt: { gte: thirtyDaysAgoDate } },
+    select: { path: true, createdAt: true, utmSource: true },
+  })
+
+  // Group by day
+  const dailyViews: Record<string, number> = {}
+  const last30Days: string[] = []
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    dailyViews[key] = 0
+    last30Days.push(key)
+  }
+
+  for (const pv of pageViews) {
+    const key = pv.createdAt.toISOString().slice(0, 10)
+    if (key in dailyViews) {
+      dailyViews[key]++
+    }
+  }
+
+  const dailyTrend = last30Days.map(date => ({ date, views: dailyViews[date] }))
+
+  // Weekly trend (last 7 days)
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgoDate.getDate() - 7)
+  const last7DaysViews = pageViews.filter(pv => pv.createdAt >= sevenDaysAgo)
+  const totalViewsLast7Days = last7DaysViews.length
+  const totalViewsLast30Days = pageViews.length
+
+  // Top pages (by view count, last 30 days)
+  const pageCounts: Record<string, number> = {}
+  for (const pv of pageViews) {
+    pageCounts[pv.path] = (pageCounts[pv.path] || 0) + 1
+  }
+  const topPages = Object.entries(pageCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 10)
+    .map(([path, count]) => ({ path, count }))
+
+  // Newsletter subscribers count
+  const newsletterCount = await db.newsletterSubscriber.count({
+    where: { isActive: true },
+  })
+
+  const pageViewStats = {
+    totalLast7Days: totalViewsLast7Days,
+    totalLast30Days: totalViewsLast30Days,
+    dailyTrend,
+    topPages,
+    avgDaily: Math.round(totalViewsLast30Days / 30 * 10) / 10,
+  }
+
   return NextResponse.json({
     summary: {
       totalMembers,
@@ -97,5 +156,7 @@ export async function GET(req: NextRequest) {
     topReferrers,
     utmBreakdown: utmStats,
     shareBreakdown: shareStats,
+    pageViews: pageViewStats,
+    newsletterSubscribers: newsletterCount,
   })
 }

@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       whyWeLikeIt: true,
       category: true,
       isActive: true,
+      scheduledAt: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     const {
       productName, asin, affiliateUrl, imageUrl,
       description, originalPrice, dealPrice, whyWeLikeIt,
-      category, isActive,
+      category, isActive, scheduledAt,
     } = body
 
     if (!productName || !affiliateUrl || !description) {
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
         whyWeLikeIt: whyWeLikeIt || null,
         category: category || null,
         isActive: isActive || false,
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       },
     })
 

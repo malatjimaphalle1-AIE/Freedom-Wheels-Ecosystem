@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Check, ExternalLink, Menu, X, ShieldCheck, TrendingUp, Users, BookOpen, HeartHandshake, Lock, ArrowRight } from 'lucide-react'
 import { TERMS_OF_SERVICE, PRIVACY_POLICY, REFUND_POLICY } from '@/lib/legal-content'
 import { SocialShare } from '@/components/social-share'
+import { EmailCapture } from '@/components/email-capture'
 
 type Tier = 'STARTER' | 'PRO' | 'ELITE'
 
@@ -162,6 +163,21 @@ export default function Home() {
         <FaqSection />
         <FounderSection />
         <FinalCta onLegalClick={setLegalModal} />
+
+        {/* Email capture section */}
+        <section className="border-b bg-muted/30">
+          <div className="container mx-auto px-4 py-12 text-center">
+            <div className="max-w-2xl mx-auto">
+              <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">
+                Get notified when we publish new guides.
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                Join our newsletter. No spam — just one email when a new buying guide drops.
+              </p>
+              <EmailCapture />
+            </div>
+          </div>
+        </section>
       </main>
 
       <Footer onLegalClick={setLegalModal} />
