@@ -106,6 +106,8 @@ export default function AdminGuidesPage() {
     setCoverImageUrl('')
     setMetaDescription('')
     setSelectedPartnerIds([])
+    setShowForm(true)
+    loadPartners()
 
     // Fetch full guide details via admin API (works for drafts + published)
     try {
