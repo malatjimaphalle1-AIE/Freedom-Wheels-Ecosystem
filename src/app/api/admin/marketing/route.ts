@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
 
   // Weekly trend (last 7 days)
   const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgoDate.getDate() - 7)
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
   const last7DaysViews = pageViews.filter(pv => pv.createdAt >= sevenDaysAgo)
   const totalViewsLast7Days = last7DaysViews.length
   const totalViewsLast30Days = pageViews.length
