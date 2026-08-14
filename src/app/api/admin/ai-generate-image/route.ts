@@ -1,6 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth } from '@/lib/admin-auth'
 import ZAI from 'z-ai-web-dev-sdk'
+import fs from 'fs'
+import path from 'path'
+
+// Initialize ZAI with config from env vars or /etc/.z-ai-config
+// On Vercel, the config file doesn't exist, so we use env vars instead.
+let zaiInstance: ZAI | null = null
+
+async function getZAI() {
+  if (zaiInstance) return zaiInstance
+
+  // Try config file first (works locally + on some hosts)
+  const configPaths = [
+    path.join(process.cwd(), '.z-ai-config'),
+    '/etc/.z-ai-config',
+  ]
+
+  for (const configPath of configPaths) {
+    try {
+      const configStr = fs.readFileSync(configPath, 'utf-8')
+      const config = JSON.parse(configStr)
+      if (config.baseUrl && config.apiKey) {
+        zaiInstance = new ZAI(config)
+        return zaiInstance
+      }
+    } catch {
+      // file doesn't exist, try next
+    }
+  }
+
+  // Fall back to env vars (set these on Vercel)
+  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
+    zaiInstance = new ZAI({
+      baseUrl: process.env.ZAI_BASE_URL,
+      apiKey: process.env.ZAI_API_KEY,
+      token: process.env.ZAI_TOKEN || undefined,
+      chatId: process.env.ZAI_CHAT_ID || undefined,
+      userId: process.env.ZAI_USER_ID || undefined,
+    })
+    return zaiInstance
+  }
+
+  throw new Error('ZAI configuration not found. Set ZAI_BASE_URL, ZAI_API_KEY, ZAI_TOKEN, ZAI_CHAT_ID, ZAI_USER_ID env vars on Vercel.')
+}
 
 // POST /api/admin/ai-generate-image
 // Headers: X-Admin-Key or session
@@ -64,7 +107,7 @@ export async function POST(req: NextRequest) {
     console.log('[ai-generate-image] generating:', { prompt: prompt.slice(0, 80), size, style })
 
     // Generate the image using z-ai-web-dev-sdk
-    const zai = await ZAI.create()
+    const zai = await getZAI()
     const response = await zai.images.generations.create({
       prompt: fullPrompt,
       size: size,

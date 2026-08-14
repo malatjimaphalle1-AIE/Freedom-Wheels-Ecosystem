@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, Sparkles, Download, Image as ImageIcon, Loader2, Film, Copy, Check, Wand2 } from 'lucide-react'
+import { ArrowLeft, Sparkles, Download, Image as ImageIcon, Loader2, Film, Copy, Check, Wand2, Upload, FileImage } from 'lucide-react'
 
 interface GeneratedImage {
   image: string // data URL
@@ -54,6 +54,7 @@ const PROMPT_IDEAS = [
 export default function AIGeneratorPage() {
   const [apiKey, setApiKey] = useState('')
   const [authed, setAuthed] = useState(false)
+  const [activeTab, setActiveTab] = useState<'generate' | 'upload'>('generate')
   const [prompt, setPrompt] = useState('')
   const [size, setSize] = useState('1024x1024')
   const [style, setStyle] = useState('product-photo')
@@ -62,6 +63,12 @@ export default function AIGeneratorPage() {
   const [generated, setGenerated] = useState<GeneratedImage | null>(null)
   const [history, setHistory] = useState<GeneratedImage[]>([])
   const [copied, setCopied] = useState(false)
+
+  // Upload state
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadedImage, setUploadedImage] = useState<{ url: string; name: string } | null>(null)
+  const [uploadHistory, setUploadHistory] = useState<{ url: string; name: string }[]>([])
 
   // Campaign creator state
   const [campaignMode, setCampaignMode] = useState(false)
@@ -120,6 +127,53 @@ export default function AIGeneratorPage() {
 
   function applyIdea(idea: string) {
     setPrompt(idea)
+  }
+
+  async function handleUpload(file: File) {
+    setUploading(true)
+    setUploadError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const headers: Record<string, string> = {}
+      if (apiKey) headers['X-Admin-Key'] = apiKey
+
+      const res = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Upload failed')
+      }
+
+      const newImage = { url: data.url, name: data.name }
+      setUploadedImage(newImage)
+      setUploadHistory(prev => [newImage, ...prev].slice(0, 10))
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function onFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleUpload(file)
+    }
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    const file = e.dataTransfer.files?.[0]
+    if (file && file.type.startsWith('image/')) {
+      handleUpload(file)
+    }
   }
 
   function startCampaign() {
@@ -230,6 +284,155 @@ export default function AIGeneratorPage() {
       </header>
 
       <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
+        {/* Tab selector */}
+        <div className="flex gap-2 mb-6 border-b">
+          <button
+            onClick={() => setActiveTab('generate')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'generate'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Sparkles className="h-4 w-4 inline mr-1" /> AI Generate
+          </button>
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'upload'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Upload className="h-4 w-4 inline mr-1" /> Upload Image
+          </button>
+        </div>
+
+        {activeTab === 'upload' ? (
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Upload area */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-emerald-600" /> Upload Image
+                </CardTitle>
+                <CardDescription>
+                  Upload your own image files (PNG, JPG, WebP, GIF). Max 5MB.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Drag & drop area */}
+                <div
+                  onDrop={onDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  className="border-2 border-dashed rounded-lg p-8 text-center hover:border-emerald-500 transition-colors cursor-pointer"
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                >
+                  {uploading ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
+                      <div className="text-sm text-muted-foreground">Uploading…</div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <FileImage className="h-12 w-12 text-muted-foreground" />
+                      <div className="text-sm font-medium">Click to select or drag & drop</div>
+                      <div className="text-xs text-muted-foreground">PNG, JPG, WebP, GIF — max 5MB</div>
+                    </div>
+                  )}
+                  <input
+                    id="file-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={onFileSelect}
+                    className="hidden"
+                  />
+                </div>
+
+                {uploadError && (
+                  <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/30 p-3 rounded">
+                    {uploadError}
+                  </div>
+                )}
+
+                {/* Upload history */}
+                {uploadHistory.length > 0 && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Recent uploads:</Label>
+                    <div className="grid grid-cols-4 gap-2 mt-1">
+                      {uploadHistory.map((img, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setUploadedImage(img)}
+                          className="aspect-square border rounded overflow-hidden hover:opacity-80"
+                        >
+                          <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Preview */}
+            <div>
+              {uploadedImage ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <FileImage className="h-4 w-4" /> Uploaded Image
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="border rounded-lg overflow-hidden bg-muted">
+                      <img src={uploadedImage.url} alt={uploadedImage.name} className="w-full h-auto" />
+                    </div>
+                    <div className="text-xs text-muted-foreground">File: {uploadedImage.name}</div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          const link = document.createElement('a')
+                          link.href = uploadedImage.url
+                          link.download = uploadedImage.name
+                          document.body.appendChild(link)
+                          link.click()
+                          document.body.removeChild(link)
+                        }}
+                        className="flex-1"
+                      >
+                        <Download className="h-4 w-4 mr-1" /> Download
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(uploadedImage.url)
+                          setCopied(true)
+                          setTimeout(() => setCopied(false), 2000)
+                        }}
+                      >
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                      💡 To use in a guide: download this image → upload to GitHub (public/images/) → use the URL in your guide Markdown.
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="border-dashed">
+                  <CardContent className="py-16 text-center">
+                    <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <div className="text-sm text-muted-foreground">
+                      Select or drag an image file to upload.
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
         {campaignMode && (
           <Card className="mb-6 border-violet-300 bg-violet-50 dark:bg-violet-950/30">
             <CardContent className="pt-4 flex items-center justify-between">
@@ -511,6 +714,8 @@ export default function AIGeneratorPage() {
             <p><strong className="text-foreground">For videos (Campaign Mode):</strong> Generate 3-5 images → add captions → download storyboard → assemble in CapCut or Canva (free video editors).</p>
           </CardContent>
         </Card>
+          </>
+        )}
       </main>
     </div>
   )
