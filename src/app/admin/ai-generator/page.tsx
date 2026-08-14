@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, Sparkles, Download, Image as ImageIcon, Loader2, Film, Copy, Check, Wand2, Upload, FileImage } from 'lucide-react'
+import { ArrowLeft, Sparkles, Download, Image as ImageIcon, Loader2, Film, Copy, Check, Wand2, Upload, FileImage, ExternalLink } from 'lucide-react'
 
 interface GeneratedImage {
   image: string // data URL
@@ -420,14 +420,54 @@ export default function AIGeneratorPage() {
                   </CardContent>
                 </Card>
               ) : (
-                <Card className="border-dashed">
-                  <CardContent className="py-16 text-center">
-                    <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                    <div className="text-sm text-muted-foreground">
-                      Select or drag an image file to upload.
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="space-y-4">
+                  <Card className="border-dashed">
+                    <CardContent className="py-12 text-center">
+                      <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                      <div className="text-sm text-muted-foreground mb-4">
+                        Select or drag an image file to upload.
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Canva integration helper */}
+                  <Card className="bg-gradient-to-br from-emerald-50 to-background dark:from-emerald-950/20 border-emerald-200 dark:border-emerald-800">
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <ExternalLink className="h-4 w-4 text-emerald-600" /> Create with Canva (free)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="text-xs text-muted-foreground">
+                        For images that need <strong>your face</strong> or <strong>product photos</strong> combined with AI effects, use Canva&apos;s free Magic Edit:
+                      </p>
+                      <ol className="text-xs text-muted-foreground space-y-1 list-decimal pl-4">
+                        <li>Click a size below to open Canva with the right dimensions</li>
+                        <li>Upload your photo in Canva</li>
+                        <li>Use <strong>Magic Edit</strong> → select yourself → describe the new scene</li>
+                        <li>Download the result from Canva</li>
+                        <li>Come back here → Upload tab → upload the Canva image</li>
+                      </ol>
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/size?dimension=1024x1024', '_blank', 'noopener,noreferrer')}>
+                          Square 1024×1024
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/size?dimension=1440x720', '_blank', 'noopener,noreferrer')}>
+                          Wide 1440×720
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/size?dimension=1344x768', '_blank', 'noopener,noreferrer')}>
+                          Landscape 1344×768
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/size?dimension=768x1344', '_blank', 'noopener,noreferrer')}>
+                          Portrait 768×1344
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com', '_blank', 'noopener,noreferrer')}>
+                          Open Canva Home
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               )}
             </div>
           </div>
@@ -522,7 +562,22 @@ export default function AIGeneratorPage() {
 
                 {/* Size */}
                 <div>
-                  <Label>Image size</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Image size</Label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const dims = size.split('x')
+                        const w = dims[0]
+                        const h = dims[1]
+                        // Canva create URL with custom dimensions (in pixels, but Canva uses px)
+                        window.open(`https://www.canva.com/size?dimension=${w}x${h}`, '_blank', 'noopener,noreferrer')
+                      }}
+                      className="text-xs text-emerald-600 hover:underline inline-flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3 w-3" /> Open Canva with this size
+                    </button>
+                  </div>
                   <select
                     value={size}
                     onChange={(e) => setSize(e.target.value)}
