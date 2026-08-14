@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { ArrowLeft, Key, Play, FileText, Plus, UserCog, TrendingUp, Star } from 'lucide-react'
+import { ArrowLeft, Key, Play, FileText, Plus, UserCog, TrendingUp, Star, Sparkles } from 'lucide-react'
 
 export default function AdminPage() {
   const [apiKey, setApiKey] = useState('')
@@ -137,6 +137,9 @@ export default function AdminPage() {
             </Link>
             <Link href="/admin/marketing" className="inline-flex items-center gap-1 px-3 py-1 rounded border hover:bg-muted">
               <TrendingUp className="h-4 w-4" /> Marketing analytics
+            </Link>
+            <Link href="/admin/ai-generator" className="inline-flex items-center gap-1 px-3 py-1 rounded border hover:bg-muted bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300">
+              <Sparkles className="h-4 w-4" /> AI Marketing Generator
             </Link>
           </div>
         </div>
