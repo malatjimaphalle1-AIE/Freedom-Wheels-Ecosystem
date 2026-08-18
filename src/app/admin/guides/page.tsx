@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, memo, useCallback, useMemo } from 'react'
+import { useState, useEffect, memo, useCallback, useMemo, useDeferredValue } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -77,6 +77,10 @@ export default function AdminGuidesPage() {
     const data = await res.json()
     setPartners(data.partners || [])
   }
+
+  // Deferred values to prevent INP issues when typing in large textareas
+  const deferredContent = useDeferredValue(contentMarkdown)
+  const deferredMetaDesc = useDeferredValue(metaDescription)
 
   // Stable callback for inserting markdown — prevents AffiliateLinkHelper re-rendering on every keystroke
   const handleInsertMarkdown = useCallback((markdown: string) => {
@@ -271,7 +275,7 @@ export default function AdminGuidesPage() {
                   placeholder="Best budget laptops for SA freelancers 2026 — tested 8 machines under R15,000. Honest reviews with Amazon links."
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {metaDescription.length}/155 chars — used in Google search results + social media previews. Leave blank to use the excerpt.
+                  {deferredMetaDesc.length}/155 chars — used in Google search results + social media previews. Leave blank to use the excerpt.
                 </p>
               </div>
               <div>

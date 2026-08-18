@@ -154,6 +154,20 @@ export default function AIGeneratorPage() {
       const newImage = { url: data.url, name: data.name }
       setUploadedImage(newImage)
       setUploadHistory(prev => [newImage, ...prev].slice(0, 10))
+
+      // If campaign mode is active, also add to campaign storyboard
+      if (campaignMode) {
+        const campaignImg: GeneratedImage = {
+          image: data.url,
+          prompt: `Uploaded: ${data.name}`,
+          fullPrompt: data.name,
+          size: 'upload',
+          style: 'uploaded',
+          generatedAt: new Date().toISOString(),
+        }
+        setCampaignImages(prev => [...prev, campaignImg])
+        setCampaignCaptions(prev => [...prev, ''])
+      }
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
@@ -449,16 +463,16 @@ export default function AIGeneratorPage() {
                         <li>Come back here → Upload tab → upload the Canva image</li>
                       </ol>
                       <div className="flex flex-wrap gap-2 pt-2">
-                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/size?dimension=1024x1024', '_blank', 'noopener,noreferrer')}>
+                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/design/create?dimensions=1024x1024', '_blank', 'noopener,noreferrer')}>
                           Square 1024×1024
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/size?dimension=1440x720', '_blank', 'noopener,noreferrer')}>
+                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/design/create?dimensions=1440x720', '_blank', 'noopener,noreferrer')}>
                           Wide 1440×720
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/size?dimension=1344x768', '_blank', 'noopener,noreferrer')}>
+                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/design/create?dimensions=1344x768', '_blank', 'noopener,noreferrer')}>
                           Landscape 1344×768
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/size?dimension=768x1344', '_blank', 'noopener,noreferrer')}>
+                        <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com/design/create?dimensions=768x1344', '_blank', 'noopener,noreferrer')}>
                           Portrait 768×1344
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => window.open('https://www.canva.com', '_blank', 'noopener,noreferrer')}>
@@ -570,12 +584,11 @@ export default function AIGeneratorPage() {
                         const dims = size.split('x')
                         const w = dims[0]
                         const h = dims[1]
-                        // Canva create URL with custom dimensions (in pixels, but Canva uses px)
-                        window.open(`https://www.canva.com/size?dimension=${w}x${h}`, '_blank', 'noopener,noreferrer')
+                        window.open(`https://www.canva.com/design/create?dimensions=${w}x${h}`, '_blank', 'noopener,noreferrer')
                       }}
                       className="text-xs text-emerald-600 hover:underline inline-flex items-center gap-1"
                     >
-                      <ExternalLink className="h-3 w-3" /> Open Canva with this size
+                      <ExternalLink className="h-3 w-3" /> Open Canva ({size})
                     </button>
                   </div>
                   <select
