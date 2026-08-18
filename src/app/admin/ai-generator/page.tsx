@@ -322,6 +322,31 @@ export default function AIGeneratorPage() {
           </button>
         </div>
 
+        {/* Campaign mode banner — shows on BOTH tabs */}
+        {campaignMode && (
+          <Card className="mb-6 border-violet-300 bg-violet-50 dark:bg-violet-950/30">
+            <CardContent className="pt-4 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-violet-700 dark:text-violet-400 flex items-center gap-2">
+                  <Film className="h-4 w-4" /> Campaign Mode Active
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Images you generate OR upload will be added to your campaign storyboard. Switch between tabs freely. Add captions, then download the storyboard.
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Badge variant="secondary">{campaignImages.length} images</Badge>
+                {campaignImages.length > 0 && (
+                  <>
+                    <Button size="sm" variant="outline" onClick={clearCampaign}>Clear</Button>
+                    <Button size="sm" onClick={downloadCampaign}>Download Storyboard</Button>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {activeTab === 'upload' ? (
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Upload area */}
@@ -487,30 +512,6 @@ export default function AIGeneratorPage() {
           </div>
         ) : (
           <>
-        {campaignMode && (
-          <Card className="mb-6 border-violet-300 bg-violet-50 dark:bg-violet-950/30">
-            <CardContent className="pt-4 flex items-center justify-between">
-              <div>
-                <div className="text-sm font-medium text-violet-700 dark:text-violet-400 flex items-center gap-2">
-                  <Film className="h-4 w-4" /> Campaign Mode Active
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Generate multiple images for a video storyboard. Each image you generate will be added to your campaign. Add captions, then download the storyboard.
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Badge variant="secondary">{campaignImages.length} images</Badge>
-                {campaignImages.length > 0 && (
-                  <>
-                    <Button size="sm" variant="outline" onClick={clearCampaign}>Clear</Button>
-                    <Button size="sm" onClick={downloadCampaign}>Download Storyboard</Button>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Left: Input controls */}
           <div className="space-y-4">
@@ -727,46 +728,7 @@ export default function AIGeneratorPage() {
               </Card>
             )}
 
-            {/* Campaign storyboard */}
-            {campaignMode && campaignImages.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Film className="h-4 w-4" /> Campaign Storyboard ({campaignImages.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 max-h-96 overflow-y-auto">
-                  {campaignImages.map((img, i) => (
-                    <div key={i} className="flex gap-3 border rounded p-2">
-                      <img src={img.image} alt={img.prompt} className="w-16 h-16 object-cover rounded flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium mb-1">Scene {i + 1}</div>
-                        <Input
-                          value={campaignCaptions[i] || ''}
-                          onChange={(e) => updateCaption(i, e.target.value)}
-                          placeholder="Caption for this scene…"
-                          className="text-xs h-7"
-                        />
-                        <div className="text-xs text-muted-foreground mt-1 truncate">{img.prompt}</div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="flex-shrink-0"
-                        onClick={() => downloadImage(img, `fwe-campaign-${i + 1}.png`)}
-                      >
-                        <Download className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                  {campaignImages.length >= 2 && (
-                    <Button onClick={downloadCampaign} className="w-full">
-                      <Download className="h-4 w-4 mr-1" /> Download Storyboard
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+            {/* Campaign storyboard — removed from here, moved to show on both tabs */}
           </div>
         </div>
 
@@ -783,6 +745,47 @@ export default function AIGeneratorPage() {
           </CardContent>
         </Card>
           </>
+        )}
+
+        {/* Campaign storyboard — shows on BOTH tabs */}
+        {campaignMode && campaignImages.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Film className="h-4 w-4" /> Campaign Storyboard ({campaignImages.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 max-h-96 overflow-y-auto">
+              {campaignImages.map((img, i) => (
+                <div key={i} className="flex gap-3 border rounded p-2">
+                  <img src={img.image} alt={img.prompt} className="w-16 h-16 object-cover rounded flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium mb-1">Scene {i + 1}</div>
+                    <Input
+                      value={campaignCaptions[i] || ''}
+                      onChange={(e) => updateCaption(i, e.target.value)}
+                      placeholder="Caption for this scene…"
+                      className="text-xs h-7"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1 truncate">{img.prompt}</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="flex-shrink-0"
+                    onClick={() => downloadImage(img, `fwe-campaign-${i + 1}.png`)}
+                  >
+                    <Download className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+              {campaignImages.length >= 2 && (
+                <Button onClick={downloadCampaign} className="w-full">
+                  <Download className="h-4 w-4 mr-1" /> Download Storyboard
+                </Button>
+              )}
+            </CardContent>
+          </Card>
         )}
       </main>
     </div>
