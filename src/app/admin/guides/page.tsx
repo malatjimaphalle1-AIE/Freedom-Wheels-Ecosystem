@@ -59,9 +59,9 @@ export default function AdminGuidesPage() {
   async function loadGuides() {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/guides', {
-        headers: { 'X-Admin-Key': apiKey }
-      })
+      const headers: Record<string, string> = {}
+      if (apiKey) headers['X-Admin-Key'] = apiKey
+      const res = await fetch('/api/admin/guides', { headers })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load')
       setGuides(data.guides)
@@ -155,17 +155,36 @@ export default function AdminGuidesPage() {
       }
       const url = editing ? `/api/admin/guides/${editing.id}` : '/api/admin/guides'
       const method = editing ? 'PATCH' : 'POST'
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (apiKey) headers['X-Admin-Key'] = apiKey
+
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': apiKey },
+        headers,
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30000), // 30-second timeout
       })
+
+      if (!res.ok) {
+        let errorMsg = 'Save failed'
+        try {
+          const errorData = await res.json()
+          errorMsg = errorData.error || errorMsg
+        } catch {
+          errorMsg = `Server error (${res.status})`
+        }
+        throw new Error(errorMsg)
+      }
+
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Save failed')
       setShowForm(false)
       await loadGuides()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      if (err instanceof Error && err.name === 'TimeoutError') {
+        setError('Save timed out — the guide content may be too large. Try saving in smaller chunks.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to save guide')
+      }
     } finally {
       setLoading(false)
     }
