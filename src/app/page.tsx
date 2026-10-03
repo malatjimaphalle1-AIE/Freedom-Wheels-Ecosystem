@@ -207,6 +207,7 @@ function Nav({
     { label: 'How It Works', href: '#how-it-works' },
     { label: 'Pricing', href: '#pricing' },
     { label: 'Guides', href: '/guides' },
+    { label: 'AI Tools', href: '/ai-tools' },
     { label: 'Transparency', href: '/transparency' },
     { label: 'Partners', href: '#partners' },
     { label: 'FAQ', href: '#faq' },
@@ -1127,6 +1128,7 @@ function Footer({ onLegalClick }: { onLegalClick: (m: 'terms' | 'privacy' | 'ref
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><a href="/member" className="hover:text-foreground">Member Login</a></li>
               <li><a href="/guides" className="hover:text-foreground">Buying Guides</a></li>
+              <li><a href="/ai-tools" className="hover:text-foreground">AI Tools</a></li>
               <li><a href="/transparency" className="hover:text-foreground">Transparency Reports</a></li>
               <li><a href="/admin" className="hover:text-foreground">Admin (founder only)</a></li>
             </ul>

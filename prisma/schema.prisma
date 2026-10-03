@@ -377,3 +377,28 @@ model PageView {
   @@index([createdAt])
   @@index([utmSource])
 }
+
+// AI Tools Marketplace — curated directory of AI tools for SA entrepreneurs
+model AiTool {
+  id            String   @id @default(cuid())
+  name          String   // e.g. "Midjourney", "Canva Magic Edit"
+  description   String   // short description (1-2 sentences)
+  longDescription String? // longer description with features
+  url           String   // the tool's website URL
+  affiliateUrl  String?  // affiliate link (if available)
+  imageUrl      String?  // logo or screenshot URL
+  category      String   // "AI Creative" (for future: "AI Writing", "AI Code", etc.)
+  subcategory   String   // "Text-to-Image", "Image-to-Image", etc.
+  pricing       String   @default("Freemium") // "Free", "Freemium", "Paid", "Free Trial"
+  features      String?  // comma-separated: "text-to-image, batch, API"
+  rating        Int      @default(4) // 1-5 stars
+  isFeatured    Boolean  @default(false) // highlighted on marketplace page
+  isPublished    Boolean  @default(true)
+  displayOrder  Int      @default(100)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([category, subcategory])
+  @@index([isPublished, isFeatured])
+  @@index([subcategory])
+}
