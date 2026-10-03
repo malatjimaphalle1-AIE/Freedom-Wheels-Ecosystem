@@ -381,7 +381,7 @@ model PageView {
 // AI Tools Marketplace — curated directory of AI tools for SA entrepreneurs
 model AiTool {
   id            String   @id @default(cuid())
-  name          String   // e.g. "Midjourney", "Canva Magic Edit"
+  name          String   @unique // e.g. "Midjourney", "Canva Magic Edit"
   description   String   // short description (1-2 sentences)
   longDescription String? // longer description with features
   url           String   // the tool's website URL
