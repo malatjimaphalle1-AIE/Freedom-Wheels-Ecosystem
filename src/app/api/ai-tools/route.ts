@@ -35,9 +35,9 @@ export async function GET(req: NextRequest) {
     },
   })
 
-  // Get distinct subcategories for filter UI
+  // Get distinct subcategories for filter UI (all categories)
   const subcategories = await db.aiTool.findMany({
-    where: { isPublished: true, category: 'AI Creative' },
+    where: { isPublished: true },
     select: { subcategory: true },
     distinct: ['subcategory'],
     orderBy: { subcategory: 'asc' },
