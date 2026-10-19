@@ -208,8 +208,8 @@ function Nav({
     { label: 'Pricing', href: '#pricing' },
     { label: 'Guides', href: '/guides' },
     { label: 'AI Tools', href: '/ai-tools' },
+    { label: 'Products', href: '/products/budget-launch-standard' },
     { label: 'Transparency', href: '/transparency' },
-    { label: 'Partners', href: '#partners' },
     { label: 'FAQ', href: '#faq' },
   ]
 

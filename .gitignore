@@ -71,6 +71,7 @@ server.log
 !/scripts/seed-partners.js
 !/scripts/seed-guides.js
 !/scripts/seed-ai-tools.js
+!/scripts/seed-digital-products.js
 
 # Worklog (session-internal, may contain references to redacted secrets)
 worklog.md

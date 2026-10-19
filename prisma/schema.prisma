@@ -402,3 +402,54 @@ model AiTool {
   @@index([isPublished, isFeatured])
   @@index([subcategory])
 }
+
+// Digital Products — buyable PDF guides, templates, courses
+model DigitalProduct {
+  id            String   @id @default(cuid())
+  slug          String   @unique // URL-friendly identifier
+  title         String
+  subtitle      String?  // tagline shown below title
+  description   String   // sales page description (markdown)
+  longDescription String? // detailed description
+  coverImageUrl String?
+  pdfUrl        String?  // URL to the actual PDF file (or content reference)
+  bonusUrl      String?  // URL to bonus/expanded content (for bundles)
+  priceCents    Int      // price in ZAR cents (e.g. 9900 = R99.00)
+  compareAtCents Int?    // original price for showing discount (e.g. 14900 = R149.00)
+  tier          String   @default("standard") // "intro" | "standard" | "bundle"
+  isPublished   Boolean  @default(true)
+  isFeatured    Boolean  @default(false)
+  features      String?  // comma-separated list of what's included
+  displayOrder  Int      @default(100)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  purchases     DigitalProductPurchase[]
+
+  @@index([isPublished, isFeatured])
+  @@index([slug])
+}
+
+// Digital product purchases — tracks who bought what
+model DigitalProductPurchase {
+  id              String   @id @default(cuid())
+  productId       String
+  product         DigitalProduct @relation(fields: [productId], references: [id])
+  userId          String?  // null if guest purchase
+  email           String   // buyer email (always captured)
+  name            String?  // buyer name
+  payfastPaymentId String?  // pf_payment_id from PayFast
+  amountCents     Int      // actual amount paid
+  status          String   @default("pending") // "pending" | "completed" | "failed" | "refunded"
+  downloadToken   String?  @unique // token for secure download access
+  downloadCount    Int      @default(0) // how many times downloaded
+  maxDownloads    Int      @default(5) // download limit
+  expiresAt       DateTime? // download link expiry
+  rawPayload      String?  // full ITN payload for audit
+  createdAt       DateTime @default(now())
+
+  @@index([productId])
+  @@index([email])
+  @@index([downloadToken])
+  @@index([status])
+}
